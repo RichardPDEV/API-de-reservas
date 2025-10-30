@@ -1,20 +1,5 @@
 package com.example.reservas.web.error;
 
-public class ApiError {
-    private String message;
+import java.util.Map;
 
-    public ApiError() {
-    }
-
-    public ApiError(String message) {
-        this.message = message;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-}
+public record ApiError(String timestamp, String path, int status, String code, String message, Map<String, String> details) {}

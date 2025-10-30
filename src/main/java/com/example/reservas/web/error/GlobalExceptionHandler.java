@@ -1,16 +1,55 @@
 package com.example.reservas.web.error;
 
+import com.example.reservas.service.NotFoundException;
+import com.example.reservas.service.ValidationException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.time.OffsetDateTime;
+import java.util.HashMap;
+import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-    @ExceptionHandler(Exception.class)
-    public ResponseEntity<ApiError> handle(Exception ex) {
-        ApiError err = new ApiError(ex.getMessage());
-        return ResponseEntity.status(500).body(err);
+    @ExceptionHandler(NotFoundException.class)
+    public ResponseEntity<ApiError> handleNotFound(NotFoundException ex, org.springframework.web.context.request.WebRequest req) {
+        return build(HttpStatus.NOT_FOUND, "NOT_FOUND", ex.getMessage(), req, null);
     }
 
+    @ExceptionHandler(ValidationException.class)
+    public ResponseEntity<ApiError> handleValidation(ValidationException ex, org.springframework.web.context.request.WebRequest req) {
+        return build(HttpStatus.BAD_REQUEST, "VALIDATION_ERROR", ex.getMessage(), req, null);
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiError> handleBeanValidation(MethodArgumentNotValidException ex, org.springframework.web.context.request.WebRequest req) {
+        Map<String, String> details = new HashMap<>();
+        for (var error : ex.getBindingResult().getAllErrors()) {
+            String field = error instanceof FieldError fe ? fe.getField() : error.getObjectName();
+            details.put(field, error.getDefaultMessage());
+        }
+        return build(HttpStatus.BAD_REQUEST, "BEAN_VALIDATION", "Validación de request fallida", req, details);
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiError> handleDb(DataIntegrityViolationException ex, org.springframework.web.context.request.WebRequest req) {
+        return build(HttpStatus.CONFLICT, "DB_CONSTRAINT", "Violación de restricción de datos", req, null);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiError> handleOthers(Exception ex, org.springframework.web.context.request.WebRequest req) {
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Error inesperado", req, null);
+    }
+
+    private ResponseEntity<ApiError> build(HttpStatus status, String code, String message, org.springframework.web.context.request.WebRequest req, Map<String,String> details) {
+        String path = req.getDescription(false).replace("uri=", "");
+        ApiError body = new ApiError(OffsetDateTime.now().toString(), path, status.value(), code, message, details);
+        return ResponseEntity.status(status).body(body);
+    }
 }

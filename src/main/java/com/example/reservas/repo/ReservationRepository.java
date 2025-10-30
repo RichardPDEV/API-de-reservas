@@ -2,6 +2,8 @@ package com.example.reservas.repo;
 
 import com.example.reservas.domain.Reservation;
 import com.example.reservas.domain.ReservationStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -27,6 +29,10 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
       order by r.startTime asc
       """)
     List<Reservation> findForDay(Long resourceId, OffsetDateTime start, OffsetDateTime end);
+
+  Page<Reservation> findByResourceIdAndStartTimeGreaterThanEqualAndStartTimeLessThanOrderByStartTimeAsc(
+    Long resourceId, OffsetDateTime start, OffsetDateTime end, Pageable pageable
+  );
 
     long countByResourceIdAndStatus(Long resourceId, ReservationStatus status);
 }
