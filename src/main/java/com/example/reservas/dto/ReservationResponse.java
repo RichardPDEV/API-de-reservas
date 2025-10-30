@@ -1,0 +1,8 @@
+package com.example.reservas.dto;
+
+import java.time.OffsetDateTime;
+
+public record ReservationResponse(
+    Long id, Long resourceId, String customerName, String customerEmail,
+    Integer partySize, OffsetDateTime startTime, OffsetDateTime endTime, String status
+) {}
