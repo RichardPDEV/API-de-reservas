@@ -15,7 +15,7 @@ public class Business {
     @Column(name="created_at", nullable=false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
-    // getters/setters
+    // Getters and Setters
 
     public Long getId() {
         return id;
@@ -49,5 +49,7 @@ public class Business {
         this.createdAt = createdAt;
     }
 
-    
+
+        
+
 }

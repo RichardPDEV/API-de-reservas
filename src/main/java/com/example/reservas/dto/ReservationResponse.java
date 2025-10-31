@@ -1,5 +1,4 @@
 package com.example.reservas.dto;
-
 import java.time.OffsetDateTime;
 
 public record ReservationResponse(

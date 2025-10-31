@@ -27,8 +27,8 @@ public class Reservation {
     @Column(name="created_at", nullable=false)
     private OffsetDateTime createdAt = OffsetDateTime.now();
 
+// getters/setters
 
-    // getters/setters
     public Long getId() {
         return id;
     }
