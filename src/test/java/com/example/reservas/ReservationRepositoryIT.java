@@ -38,8 +38,6 @@ class ReservationRepositoryIT {
         r.add("spring.datasource.url", postgres::getJdbcUrl);
         r.add("spring.datasource.username", postgres::getUsername);
         r.add("spring.datasource.password", postgres::getPassword);
-        // En tests de integración usando Testcontainers, permitir a Hibernate crear/actualizar el esquema
-        r.add("spring.jpa.hibernate.ddl-auto", () -> "update");
     }
 
     @Autowired BusinessRepository businessRepo;
