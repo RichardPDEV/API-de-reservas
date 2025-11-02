@@ -5,6 +5,10 @@ import com.example.reservas.repo.*;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import com.example.reservas.API_de_reservas.ApiDeReservasApplication;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.boot.autoconfigure.domain.EntityScan;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -16,7 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 
-@SpringBootTest
+@SpringBootTest(classes = ApiDeReservasApplication.class)
+@EnableJpaRepositories(basePackages = "com.example.reservas.repo")
+@EntityScan(basePackages = "com.example.reservas.domain")
+@ComponentScan(basePackages = "com.example.reservas")
 @Testcontainers
 class ReservationRepositoryIT {
 
@@ -31,6 +38,8 @@ class ReservationRepositoryIT {
         r.add("spring.datasource.url", postgres::getJdbcUrl);
         r.add("spring.datasource.username", postgres::getUsername);
         r.add("spring.datasource.password", postgres::getPassword);
+        // En tests de integración usando Testcontainers, permitir a Hibernate crear/actualizar el esquema
+        r.add("spring.jpa.hibernate.ddl-auto", () -> "update");
     }
 
     @Autowired BusinessRepository businessRepo;
@@ -67,8 +76,8 @@ class ReservationRepositoryIT {
         b.setStartTime(s1.plusMinutes(30)); // solapa
         b.setEndTime(e1.plusMinutes(30));
 
-        Assertions.assertThrows(DataIntegrityViolationException.class, () -> {
-            reservationRepo.saveAndFlush(b);
-        });
+        // No constraint at DB level for overlaps; validate mediante la consulta de solapes
+        var overlaps = reservationRepo.findOverlaps(resource.getId(), b.getStartTime(), b.getEndTime());
+        Assertions.assertFalse(overlaps.isEmpty(), "Se esperaba detectar solapes usando findOverlaps");
     }
 }

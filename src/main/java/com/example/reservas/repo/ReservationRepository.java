@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface ReservationRepository extends JpaRepository<Reservation, Long> {
 
@@ -27,6 +29,15 @@ public interface ReservationRepository extends JpaRepository<Reservation, Long> 
       order by r.startTime asc
       """)
     List<Reservation> findForDay(Long resourceId, OffsetDateTime start, OffsetDateTime end);
+
+    @Query("""
+      select r from Reservation r
+      where r.resource.id = :resourceId
+        and r.startTime >= :start
+        and r.startTime < :end
+      order by r.startTime asc
+      """)
+    Page<Reservation> findForDayPage(Long resourceId, OffsetDateTime start, OffsetDateTime end, Pageable pageable);
 
     long countByResourceIdAndStatus(Long resourceId, ReservationStatus status);
 }

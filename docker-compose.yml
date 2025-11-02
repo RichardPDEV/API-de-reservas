@@ -1,0 +1,26 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: reservas
+      POSTGRES_USER: reservas
+      POSTGRES_PASSWORD: reservas
+    ports: ["5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+  api:
+    build: .
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/reservas
+      SPRING_DATASOURCE_USERNAME: reservas
+      SPRING_DATASOURCE_PASSWORD: reservas
+      SPRING_DATA_REDIS_HOST: redis
+    depends_on: [postgres, redis]
+    ports: ["8080:8080"]
+
+volumes:
+  pgdata:
