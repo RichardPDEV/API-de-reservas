@@ -9,8 +9,6 @@ import com.example.reservas.repo.CancellationPolicyRepository;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Caching; // Importa la anotación Caching
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,11 +30,6 @@ public class ReservationService {
         this.cacheManager = cacheManager;
     }
 
-    @Caching(evict = {
-        @CacheEvict(cacheNames = "availability", key = "'avail:' + #req.resourceId() + ':' + #root.target.dayKey(#req.startTime())"),
-        @CacheEvict(cacheNames = "availability", key = "'avail:' + #req.resourceId() + ':' + #root.target.dayKey(#req.endTime())", 
-                    condition = "#req.startTime().toLocalDate() != #req.endTime().toLocalDate()")
-    })
     @Transactional
     public ReservationResponse create(CreateReservationRequest req) {
         if (req.startTime().isAfter(req.endTime()) || req.startTime().isEqual(req.endTime()))
@@ -62,6 +55,18 @@ public class ReservationService {
         r.setStatus(ReservationStatus.CONFIRMED);
 
         Reservation saved = reservationRepo.saveAndFlush(r);
+        
+        // Evict cache entries for availability
+        var cache = cacheManager.getCache("availability");
+        if (cache != null) {
+            String key1 = "avail:" + resource.getId() + ":" + dayKey(req.startTime());
+            cache.evict(key1);
+            if (!req.startTime().toLocalDate().equals(req.endTime().toLocalDate())) {
+                String key2 = "avail:" + resource.getId() + ":" + dayKey(req.endTime());
+                cache.evict(key2);
+            }
+        }
+        
         return new ReservationResponse(
             saved.getId(), resource.getId(), saved.getCustomerName(), saved.getCustomerEmail(),
             saved.getPartySize(), saved.getStartTime(), saved.getEndTime(), saved.getStatus().name()

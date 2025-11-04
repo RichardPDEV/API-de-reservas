@@ -2,7 +2,6 @@ package com.example.reservas.service;
 
 import com.example.reservas.domain.Reservation;
 import com.example.reservas.repo.ReservationRepository;
-import org.springframework.cache.annotation.Cacheable; // Importa la anotación Cacheable
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,7 +18,6 @@ public class AvailabilityService {
 
     public record TimeWindow(OffsetDateTime start, OffsetDateTime end) {}
 
-    @Cacheable(cacheNames = "availability", key = "'avail:' + #resourceId + ':' + #date")
     @Transactional(readOnly = true)
     public List<TimeWindow> freeWindows(Long resourceId, LocalDate date) {
         // Ventana del día en UTC [00:00, 24:00)

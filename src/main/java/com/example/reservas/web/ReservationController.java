@@ -48,7 +48,7 @@ public class ReservationController {
             Pageable pageable
     ) {
         LocalDate day = LocalDate.parse(date);
-    OffsetDateTime start = day.atStartOfDay().atOffset(ZoneOffset.UTC);
+        OffsetDateTime start = day.atStartOfDay(ZoneOffset.UTC).toOffsetDateTime();
         OffsetDateTime end = start.plusDays(1);
 
         var page = reservationService // usa el repositorio paginado
