@@ -1,6 +1,6 @@
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/reservas
+    url: jdbc:postgresql://localhost:5433/reservas
     username: reservas
     password: reservas
   jpa:
@@ -13,6 +13,7 @@ spring:
     open-in-view: false
   flyway:
     enabled: true
+    locations: classpath:db/migration
   data:
     redis:
       host: localhost
