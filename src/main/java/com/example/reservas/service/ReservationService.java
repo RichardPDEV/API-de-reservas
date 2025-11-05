@@ -9,6 +9,8 @@ import com.example.reservas.repo.CancellationPolicyRepository;
 import org.springframework.cache.CacheManager;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching; // Importa la anotación Caching
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +19,7 @@ import java.util.List;
 
 @Service
 public class ReservationService {
+
     private final ReservationRepository reservationRepo;
     private final ResourceRepository resourceRepo;
     private final CancellationPolicyRepository cancellationPolicyRepo;
@@ -30,6 +33,11 @@ public class ReservationService {
         this.cacheManager = cacheManager;
     }
 
+    @Caching(evict = {
+        @CacheEvict(cacheNames = "availability", key = "'avail:' + #req.resourceId() + ':' + #root.target.dayKey(#req.startTime())"),
+        @CacheEvict(cacheNames = "availability", key = "'avail:' + #req.resourceId() + ':' + #root.target.dayKey(#req.endTime())",
+                    condition = "#req.startTime().toLocalDate() != #req.endTime().toLocalDate()")
+    })
     @Transactional
     public ReservationResponse create(CreateReservationRequest req) {
         if (req.startTime().isAfter(req.endTime()) || req.startTime().isEqual(req.endTime()))
@@ -55,36 +63,22 @@ public class ReservationService {
         r.setStatus(ReservationStatus.CONFIRMED);
 
         Reservation saved = reservationRepo.saveAndFlush(r);
-        
-        // Evict cache entries for availability
-        var cache = cacheManager.getCache("availability");
-        if (cache != null) {
-            String key1 = "avail:" + resource.getId() + ":" + dayKey(req.startTime());
-            cache.evict(key1);
-            if (!req.startTime().toLocalDate().equals(req.endTime().toLocalDate())) {
-                String key2 = "avail:" + resource.getId() + ":" + dayKey(req.endTime());
-                cache.evict(key2);
-            }
-        }
-        
-        return new ReservationResponse(
-            saved.getId(), resource.getId(), saved.getCustomerName(), saved.getCustomerEmail(),
-            saved.getPartySize(), saved.getStartTime(), saved.getEndTime(), saved.getStatus().name()
-        );
+
+        return toResponse(saved);
     }
 
     // Helper para clave de día (UTC)
     public String dayKey(OffsetDateTime ts) {
         return ts.atZoneSameInstant(ZoneOffset.UTC).toLocalDate().toString();
     }
-    
+
     // Obtiene la entidad Reservation o lanza NotFoundException
     public Reservation getEntity(Long id) {
         return reservationRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Reservation %d no existe".formatted(id)));
     }
 
-    // Lista paginada para un día
+    // Lista paginada para un rango de día
     public Page<Reservation> listPage(Long resourceId, OffsetDateTime start, OffsetDateTime end, Pageable pageable) {
         return reservationRepo.findForDayPage(resourceId, start, end, pageable);
     }
@@ -102,12 +96,11 @@ public class ReservationService {
                 .findFirstByBusinessId(r.getResource().getBusiness().getId())
                 .orElse(null);
 
-    Integer freeBeforeInt = null;
-    if (policy != null) freeBeforeInt = policy.getFreeBeforeMinutes();
-    int freeBefore = freeBeforeInt == null ? 0 : freeBeforeInt;
+        Integer freeBeforeInt = null;
+        if (policy != null) freeBeforeInt = policy.getFreeBeforeMinutes();
+        int freeBefore = freeBeforeInt == null ? 0 : freeBeforeInt;
 
         long minutesBefore = Duration.between(now, r.getStartTime()).toMinutes();
-
         if (minutesBefore >= freeBefore) {
             r.setStatus(ReservationStatus.CANCELLED);
         } else {
@@ -129,10 +122,50 @@ public class ReservationService {
             }
         }
 
-        return new ReservationResponse(
-                saved.getId(), saved.getResource().getId(), saved.getCustomerName(), saved.getCustomerEmail(),
-                saved.getPartySize(), saved.getStartTime(), saved.getEndTime(), saved.getStatus().name()
-        );
+        return toResponse(saved);
     }
 
+    // ===================== NUEVO (Dev A): listForDay por fecha =====================
+
+    /**
+     * Dev A: Consulta las reservas de un recurso para un día específico (fecha en ISO-8601).
+     * Usa límites de día en UTC [inclusive, exclusive) para ser consistente con dayKey().
+     *
+     * Ejemplo de uso:
+     *   reservationService.listForDay(resourceId, LocalDate.parse("2025-01-01"));
+     */
+    public List<ReservationResponse> listForDay(Long resourceId, LocalDate date) {
+        if (resourceId == null) {
+            throw new ValidationException("resourceId es requerido");
+        }
+        if (date == null) {
+            throw new ValidationException("date es requerido");
+        }
+
+        // Verificamos que el recurso exista (si no existe -> 404 coherente con getEntity)
+        resourceRepo.findById(resourceId)
+                .orElseThrow(() -> new NotFoundException("Resource %d no existe".formatted(resourceId)));
+
+        // Límites del día en UTC (consistente con dayKey)
+        OffsetDateTime start = date.atStartOfDay().atOffset(ZoneOffset.UTC);
+        OffsetDateTime end = date.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
+
+        Page<Reservation> page = reservationRepo.findForDayPage(resourceId, start, end, Pageable.unpaged());
+        return page.getContent().stream().map(this::toResponse).toList();
+    }
+
+    // ===================== Helpers =====================
+
+    private ReservationResponse toResponse(Reservation saved) {
+        return new ReservationResponse(
+                saved.getId(),
+                saved.getResource().getId(),
+                saved.getCustomerName(),
+                saved.getCustomerEmail(),
+                saved.getPartySize(),
+                saved.getStartTime(),
+                saved.getEndTime(),
+                saved.getStatus().name()
+        );
+    }
 }
