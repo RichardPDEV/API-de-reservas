@@ -3,7 +3,9 @@ package com.example.reservas.service;
 import com.example.reservas.domain.Reservation;
 import com.example.reservas.domain.ValidationException;
 import com.example.reservas.repo.ReservationRepository;
-import org.springframework.cache.annotation.Cacheable; // Caché de disponibilidad por día
+import com.example.reservas.service.cache.CacheKeys;
+import org.springframework.cache.annotation.CacheConfig;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -11,6 +13,7 @@ import java.time.*;
 import java.util.*;
 
 @Service
+@CacheConfig(cacheNames = "availability")
 public class AvailabilityService {
 
     private final ReservationRepository reservationRepo;
@@ -27,9 +30,9 @@ public class AvailabilityService {
      *   availabilityService.freeWindows(resourceId, LocalDate.parse("2025-01-01"));
      *
      * Calcula ventanas libres para el recurso en el día dado (UTC) usando caché.
-     * Clave de caché: "avail:{resourceId}:{YYYY-MM-DD}"
+     * Clave de caché: "avail:{resourceId}:{YYYY-MM-DD}" (unificada vía CacheKeys).
      */
-    @Cacheable(cacheNames = "availability", key = "'avail:' + #resourceId + ':' + #date.toString()")
+    @Cacheable(key = "T(com.example.reservas.service.cache.CacheKeys).availKey(#resourceId, #date)")
     @Transactional(readOnly = true)
     public List<TimeWindow> freeWindows(Long resourceId, LocalDate date) {
         if (resourceId == null) throw new ValidationException("resourceId es requerido");
@@ -59,7 +62,7 @@ public class AvailabilityService {
             // Si la reserva no cae dentro del día, saltar
             if (!reClamped.isAfter(rsClamped)) continue;
 
-            // Si hay hueco entre el cursor y el inicio de la reserva, añadirlo (clamp al fin del día)
+            // Si hay hueco entre el cursor y el inicio de la reserva, añadirlo
             if (cursor.isBefore(rsClamped)) {
                 OffsetDateTime gapEnd = rsClamped.isBefore(dayEnd) ? rsClamped : dayEnd;
                 if (cursor.isBefore(gapEnd)) {
