@@ -75,7 +75,9 @@ public class ReservationService {
         r.setStatus(ReservationStatus.CONFIRMED);
 
         Reservation saved = reservationRepo.saveAndFlush(r);
-        return toResponse(saved);
+        // Acceder al resource dentro de la transacción para evitar LazyInitializationException
+        Long resourceId = saved.getResource().getId();
+        return toResponse(saved, resourceId);
     }
 
     /**
@@ -98,19 +100,22 @@ public class ReservationService {
         r.setCancellationReason(reason);
 
         Reservation saved = reservationRepo.saveAndFlush(r);
+        
+        // Acceder al resource dentro de la transacción para evitar LazyInitializationException
+        Long resourceId = saved.getResource().getId();
 
         // Evict availability cache para el día de inicio y (si aplica) el de fin, normalizados a UTC
         var cache = cacheManager.getCache("availability");
         if (cache != null) {
             LocalDate startDay = dayDate(saved.getStartTime());
             LocalDate endDay = dayDate(saved.getEndTime());
-            cache.evict(CacheKeys.availKey(saved.getResource().getId(), startDay));
+            cache.evict(CacheKeys.availKey(resourceId, startDay));
             if (!startDay.equals(endDay)) {
-                cache.evict(CacheKeys.availKey(saved.getResource().getId(), endDay));
+                cache.evict(CacheKeys.availKey(resourceId, endDay));
             }
         }
 
-        return toResponse(saved);
+        return toResponse(saved, resourceId);
     }
 
     /**
@@ -137,6 +142,7 @@ public class ReservationService {
     /**
      * Dev A: Consulta de reservas por fecha (coherente con día UTC).
      */
+    @Transactional(readOnly = true)
     public List<ReservationResponse> listForDay(Long resourceId, LocalDate date) {
         if (resourceId == null) throw new ValidationException("resourceId es requerido");
         if (date == null) throw new ValidationException("date es requerido");
@@ -147,7 +153,13 @@ public class ReservationService {
         OffsetDateTime start = date.atStartOfDay().atOffset(ZoneOffset.UTC);
         OffsetDateTime end = date.plusDays(1).atStartOfDay().atOffset(ZoneOffset.UTC);
         var page = reservationRepo.findForDayPage(resourceId, start, end, Pageable.unpaged());
-        return page.getContent().stream().map(this::toResponse).toList();
+        return page.getContent().stream()
+                .map(r -> {
+                    // Acceder al resource dentro del stream para evitar LazyInitializationException
+                    Long resId = r.getResource().getId();
+                    return toResponse(r, resId);
+                })
+                .toList();
     }
 
     // ===================== Helpers =====================
@@ -168,10 +180,10 @@ public class ReservationService {
                 .orElseThrow(() -> new NotFoundException("Reservation %d no existe".formatted(id)));
     }
 
-    private ReservationResponse toResponse(Reservation saved) {
+    private ReservationResponse toResponse(Reservation saved, Long resourceId) {
         return new ReservationResponse(
                 saved.getId(),
-                saved.getResource().getId(),
+                resourceId,
                 saved.getCustomerName(),
                 saved.getCustomerEmail(),
                 saved.getPartySize(),

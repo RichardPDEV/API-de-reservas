@@ -4,7 +4,7 @@ import com.example.reservas.domain.Reservation;
 import com.example.reservas.dto.CreateReservationRequest;
 import com.example.reservas.dto.ReservationResponse;
 import com.example.reservas.service.ReservationService;
-import com.example.reservas.web.dto.CancelReservationRequest;
+import com.example.reservas.dto.CancelReservationRequest;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;

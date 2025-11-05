@@ -2,6 +2,8 @@ package com.example.reservas.web.error;
 
 import com.example.reservas.service.NotFoundException;
 import com.example.reservas.service.ValidationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -16,6 +18,8 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(NotFoundException ex, org.springframework.web.context.request.WebRequest req) {
@@ -44,7 +48,15 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleOthers(Exception ex, org.springframework.web.context.request.WebRequest req) {
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Error inesperado", req, null);
+        log.error("Error inesperado al procesar petición: {}", req.getDescription(false), ex);
+        Map<String, String> details = new HashMap<>();
+        details.put("exception", ex.getClass().getName());
+        details.put("message", ex.getMessage());
+        if (ex.getCause() != null) {
+            details.put("cause", ex.getCause().getMessage());
+        }
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", 
+                "Error inesperado: " + ex.getClass().getSimpleName(), req, details);
     }
 
     private ResponseEntity<ApiError> build(HttpStatus status, String code, String message, org.springframework.web.context.request.WebRequest req, Map<String,String> details) {
