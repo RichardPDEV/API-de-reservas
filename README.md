@@ -1,4 +1,4 @@
-# API de Reservas (Dev A + Dev B)
+# API de Reservas
 
 [![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://adoptium.net/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
@@ -10,7 +10,7 @@
 API REST para gestionar reservas con reglas de negocio (capacidad, solapes, cancelación FREE/LATE), disponibilidad diaria cacheada en Redis, y migraciones con Flyway. Incluye CI con GitHub Actions.
 
 - Cálculo de día y claves de caché normalizadas en UTC.
-- Separación clara entre Core (Dev A) y API (Dev B).
+- Separación clara entre Core (Richard) y API (Juan).
 
 ---
 
