@@ -1,101 +1,266 @@
-# API de Reservas — Instrucciones de desarrollo y CI
+# API de Reservas (Dev A + Dev B)
 
-Resumen rápido
+[![Java](https://img.shields.io/badge/Java-21-orange.svg)](https://adoptium.net/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen.svg)](https://spring.io/projects/spring-boot)
+[![Maven](https://img.shields.io/badge/Build-Maven-blue.svg)](https://maven.apache.org/)
+[![Redis](https://img.shields.io/badge/Cache-Redis-red.svg)](https://redis.io/)
+[![PostgreSQL](https://img.shields.io/badge/DB-PostgreSQL-336791.svg)](https://www.postgresql.org/)
+[![Testcontainers](https://img.shields.io/badge/Testcontainers-Ready-0db7ed.svg)](https://www.testcontainers.org/)
 
-- Proyecto: API REST para reservas (Spring Boot, JPA, Redis, Flyway).
-- Java: 21
-- Build: Maven
-- CI: GitHub Actions (`.github/workflows/ci.yml`) ejecuta `mvn -B -q verify` en `push` y `pull_request`.
+API REST para gestionar reservas con reglas de negocio (capacidad, solapes, cancelación FREE/LATE), disponibilidad diaria cacheada en Redis, y migraciones con Flyway. Incluye CI con GitHub Actions.
 
-## Ejecutar localmente con Maven
+- Cálculo de día y claves de caché normalizadas en UTC.
+- Separación clara entre Core (Dev A) y API (Dev B).
 
-1. Compilar y ejecutar:
+---
 
+## Contenido
+- [Características](#características)
+- [Stack](#stack)
+- [Requisitos](#requisitos)
+- [Inicio rápido](#inicio-rápido)
+- [Configuración](#configuración)
+- [Ejecución](#ejecución)
+- [Docker / Docker Compose](#docker--docker-compose)
+- [Tests](#tests)
+- [CI (GitHub Actions)](#ci-github-actions)
+- [API (endpoints básicos)](#api-endpoints-básicos)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Solución de problemas](#solución-de-problemas)
+- [Contribuir](#contribuir)
+- [Licencia](#licencia)
+
+---
+
+## Características
+- Disponibilidad por recurso y día con caché Redis (`availability`).
+- Invalidación automática de caché al crear o cancelar reservas.
+- Reglas de negocio: capacidad, detección de solapes, cancelación FREE vs LATE según política.
+- DTOs y controladores REST aislando la lógica de negocio.
+- Migraciones con Flyway y pruebas de integración con Testcontainers.
+
+---
+
+## Stack
+- Java 21, Spring Boot 3.x, Spring Data JPA, Spring Cache (Redis)
+- PostgreSQL, Redis
+- Flyway para migraciones
+- JUnit 5, Testcontainers
+- Maven
+
+---
+
+## Requisitos
+- JDK 21+
+- Maven 3.9+
+- Docker (recomendado para Postgres/Redis y Testcontainers)
+- Redis 7.x, PostgreSQL 16.x
+
+---
+
+## Inicio rápido
+
+1) Levanta dependencias (opcional con Docker Compose):
+```bash
+docker compose up -d
+```
+
+2) Ejecuta la aplicación:
 ```bash
 ./mvnw spring-boot:run
 ```
 
-2. Compilar el artefacto (sin tests):
-
-```bash
-./mvnw -DskipTests=true package
-```
-
-3. Ejecutar tests (todas):
-
+3) Ejecuta tests:
 ```bash
 ./mvnw test
 ```
 
-4. Ejecutar un test concreto (por ejemplo el smoke test):
-
+4) Empaqueta el artefacto:
 ```bash
-./mvnw -Dtest=ApiSmokeTest test
+./mvnw -DskipTests=true package
 ```
-
-> Nota: algunos tests pueden usar Testcontainers (Postgres/Redis) y por tanto requieren Docker para ejecutarse correctamente. Para ejecuciones livianas el proyecto incluye soporte para H2 en pruebas puntuales.
-
-## Docker / Docker Compose
-
-Se han añadido `Dockerfile` y `docker-compose.yml` para levantar la API junto a Postgres y Redis en red local.
-
-Levantar los servicios con Docker Compose:
-
-```bash
-docker compose up --build
-```
-
-Levantar en segundo plano:
-
-```bash
-docker compose up --build -d
-```
-
-Parar y eliminar contenedores (sin borrar volúmenes):
-
-```bash
-docker compose down
-```
-
-Eliminar también volúmenes (data de Postgres):
-
-```bash
-docker compose down -v
-```
-
-Variables de entorno en `docker-compose.yml` (ejemplo):
-
-- `SPRING_DATASOURCE_URL` → `jdbc:postgresql://postgres:5432/reservas`
-- `SPRING_DATASOURCE_USERNAME` → `reservas`
-- `SPRING_DATASOURCE_PASSWORD` → `reservas`
-- `SPRING_DATA_REDIS_HOST` → `redis` (si tu app lee `spring.redis.host` puede necesitar adaptación)
-
-Si ves problemas de conexión a Redis desde Spring Boot, revisa la propiedad que utiliza tu app (`spring.redis.host` vs `spring.data.redis.host`).
-
-## GitHub Actions CI
-
-Workflow añadido: `.github/workflows/ci.yml`
-
-- Dispara en `push` y `pull_request`.
-- Ejecuta en `ubuntu-latest` con Temurin Java 21.
-- Usa cache de Maven (configurado por `actions/setup-java@v4`).
-- Comando principal: `mvn -q -B verify` (compila, empaqueta y ejecuta tests).
-
-Notas:
-- Los runners de GitHub Actions permiten ejecutar Testcontainers; si tus tests usan Testcontainers, no es necesario añadir servicios extra en el workflow. Si prefieres usar `docker-compose` en el runner o añadir servicios dedicados (postgres/redis) en la matrix del job, avísame y lo amplio.
-- Si quieres publicar artefactos (JAR) o reportes (JUnit, cobertura) puedo añadir pasos para almacenar esos artefactos como `actions/upload-artifact`.
-
-## Problemas comunes y debugging
-
-- Error de ApplicationContext en tests (bean no encontrado): asegúrate que el paquete raíz del `@SpringBootApplication` cubra los paquetes con tus repositorios y controladores. En pruebas podemos forzar una `@ComponentScan` de `com.example.reservas` si es necesario.
-- Testcontainers falla por falta de Docker: instala Docker Desktop y asegúrate de que el daemon está corriendo.
-- Si Flyway intenta conectarse a una base externa durante pruebas, desactiva Flyway en las propiedades de test: `spring.flyway.enabled=false` y usa H2 para pruebas rápidas.
-
-## Próximos pasos sugeridos
-
-- Añadir un `README-DEV.md` con checklist para crear una reserva completa (crear negocio → resource → reservation → cancelar) y comandos de test end-to-end.
-- Añadir pasos al CI para publicar resultados de tests y reportes de cobertura.
 
 ---
 
-Si quieres, genero ahora un `./github/workflows/ci.yml` más avanzado que incluya: cache de dependencias, subida de artefactos, y reportes JUnit/coverage. O puedo adaptar el `docker-compose.yml` para ajustar variables `SPRING_REDIS_HOST` según lo que tu app espere.
+## Configuración
+
+Archivo base `src/main/resources/application.yml` (ejemplo):
+```yaml
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/reservas
+    username: reservas
+    password: reservas
+
+  jpa:
+    hibernate:
+      ddl-auto: validate      # o update en desarrollo
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+  flyway:
+    enabled: true
+
+  cache:
+    type: redis
+    redis:
+      time-to-live: 15m       # TTL para disponibilidad
+
+  # Nota: según tu configuración, puedes usar una de estas variantes:
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+  # o la convención clásica:
+  # redis:
+  #   host: ${SPRING_REDIS_HOST:localhost}
+  #   port: ${SPRING_REDIS_PORT:6379}
+
+server:
+  port: 8080
+```
+
+Habilitar caché:
+```java
+@SpringBootApplication
+@EnableCaching
+public class Application {
+  public static void main(String[] args) {
+    SpringApplication.run(Application.class, args);
+  }
+}
+```
+
+Variables de entorno habituales:
+- `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`
+- `SPRING_DATA_REDIS_HOST` / `SPRING_DATA_REDIS_PORT` (o `SPRING_REDIS_HOST` / `SPRING_REDIS_PORT`)
+- `SPRING_FLYWAY_ENABLED=true`
+
+---
+
+## Ejecución
+
+- Desarrollo local:
+  ```bash
+  ./mvnw spring-boot:run
+  ```
+- Perfil específico:
+  ```bash
+  SPRING_PROFILES_ACTIVE=local ./mvnw spring-boot:run
+  ```
+
+---
+
+## Docker / Docker Compose
+
+Comandos principales:
+```bash
+# Build + up
+docker compose up --build -d
+
+# Ver estado
+docker compose ps
+
+# Detener
+docker compose down
+
+# Detener y borrar volúmenes
+docker compose down -v
+```
+
+Variables típicas en `docker-compose.yml`:
+- `SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/reservas`
+- `SPRING_DATASOURCE_USERNAME=reservas`
+- `SPRING_DATASOURCE_PASSWORD=reservas`
+- `SPRING_DATA_REDIS_HOST=redis` (o `SPRING_REDIS_HOST=redis` según tu app)
+
+---
+
+## Tests
+
+- Ejecutar todas las pruebas:
+  ```bash
+  ./mvnw test
+  ```
+- Ejecutar un test concreto:
+  ```bash
+  ./mvnw -Dtest=ApiSmokeTest test
+  ```
+
+Notas:
+- Algunos tests usan Testcontainers (requiere Docker activo).
+- Para pruebas livianas puedes usar H2 y/o `spring.cache.type=simple` en un perfil de test.
+
+---
+
+## CI (GitHub Actions)
+
+Workflow: `.github/workflows/ci.yml`
+- Se ejecuta en `push` y `pull_request`.
+- Java Temurin 21.
+- Cache de Maven.
+- Paso principal:
+  ```bash
+  mvn -B -q verify
+  ```
+Opcionales: publicar artefactos del build, reportes JUnit o cobertura (se pueden añadir pasos con `actions/upload-artifact`).
+
+---
+
+## API (endpoints básicos)
+
+Base URL: `http://localhost:8080`
+
+- POST `/api/reservations`
+  - Crea una reserva, valida capacidad/solapes y limpia caché de días afectados.
+  - Ejemplo:
+    ```bash
+    curl -X POST http://localhost:8080/api/reservations \
+      -H "Content-Type: application/json" \
+      -d '{
+        "resourceId": 1,
+        "customerName": "Ana",
+        "customerEmail": "ana@example.com",
+        "partySize": 4,
+        "startTime": "2025-01-01T18:00:00Z",
+        "endTime": "2025-01-01T20:00:00Z"
+      }'
+    ```
+
+- POST `/api/reservations/{id}/cancel`
+  - Cancela (FREE → CANCELLED, LATE → LATE_CANCELLED) e invalida caché.
+    ```bash
+    curl -X POST http://localhost:8080/api/reservations/123/cancel \
+      -H "Content-Type: application/json" \
+      -d '{ "reason": "Cambio de planes" }'
+    ```
+
+- GET `/api/resources/{resourceId}/reservations?date=YYYY-MM-DD`
+  - Lista reservas del día (UTC).
+
+- GET `/api/resources/{resourceId}/availability?date=YYYY-MM-DD`
+  - Ventanas libres cacheadas para el día (UTC).
+
+Prueba con swagger: http://localhost:8080/swagger-ui.html.
+
+
+## Solución de problemas
+
+- Redis no conecta:
+  - Verifica host/puerto y si tu app usa `spring.data.redis.*` o `spring.redis.*`.
+  - En Docker Compose, el host suele ser `redis`.
+
+- Diferencias horarias:
+  - Tiempos en ISO-8601 con zona (`Z`/offset).
+  - Día y claves de caché normalizados a UTC.
+
+- Testcontainers lento en primer uso:
+  - Descarga de imágenes; las siguientes ejecuciones serán más rápidas.
+
+---
+
+## Contribuir
+- Crea una rama `feat/mi-cambio`, ejecuta `./mvnw clean verify` y abre PR.
+- Estilo de commits sugerido: Conventional Commits.
+
+---
