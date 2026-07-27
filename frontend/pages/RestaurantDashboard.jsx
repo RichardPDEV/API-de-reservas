@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { API_BASE_URL, APP_CARD, APP_BORDER, CARD_SHADOW, TABLE_COLORS } from "../lib/constants.js";
-import { readSaveQueue, enqueueSaveItem, removeSaveItemAt } from "../lib/storage.js";
+import { readSaveQueue, enqueueSaveItem, removeSaveItemAt, readAccounts, writeAccounts } from "../lib/storage.js";
 import { getAccessToken, requestJson } from "../lib/api.js";
 import { persistRestaurantProfile } from "../lib/restaurantBackend.js";
 import { createLayoutElement, normalizeRestaurantLayout, sameRestaurantId } from "../lib/layout.js";
@@ -77,6 +77,29 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
   const suppressCreateRef = useRef(false);
   const [selectedTableId, setSelectedTableId] = useState(null);
   const [regForm, setRegForm] = useState({ name: "", cuisine: "", address: "", phone: "", description: "" });
+  const [settingsForm, setSettingsForm] = useState({
+    name: activeRest?.name || "",
+    cuisine: activeRest?.cuisine || "",
+    address: activeRest?.address || "",
+    phone: activeRest?.phone || "",
+    description: activeRest?.description || "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [settingsStatus, setSettingsStatus] = useState("");
+
+  useEffect(() => {
+    if (!activeRest) return;
+    setSettingsForm((prev) => ({
+      ...prev,
+      name: activeRest?.name || "",
+      cuisine: activeRest?.cuisine || "",
+      address: activeRest?.address || "",
+      phone: activeRest?.phone || "",
+      description: activeRest?.description || "",
+    }));
+  }, [activeRest?.id, activeRest?.name, activeRest?.cuisine, activeRest?.address, activeRest?.phone, activeRest?.description]);
 
   useEffect(() => {
     if (!activeRest) return;
@@ -590,6 +613,49 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
     setTimeout(() => { setRegDone(false); setTab("overview"); }, 2500);
   };
 
+  const updateRestaurantSettings = () => {
+    if (!activeRest) return;
+
+    const trimmedName = settingsForm.name.trim();
+    const trimmedAddress = settingsForm.address.trim();
+    if (!trimmedName || !trimmedAddress) {
+      setSettingsStatus("El nombre y la dirección son obligatorios");
+      return;
+    }
+
+    if (settingsForm.password && settingsForm.password !== settingsForm.confirmPassword) {
+      setSettingsStatus("Las contraseñas no coinciden");
+      return;
+    }
+
+    const accounts = readAccounts();
+    const currentAccount = accounts.find((account) => account.restaurantId === activeRest.id || account.email === activeRest.email);
+    const nextAccount = currentAccount
+      ? { ...currentAccount, email: settingsForm.email || currentAccount.email, password: settingsForm.password || currentAccount.password }
+      : null;
+
+    const updatedRest = {
+      ...activeRest,
+      name: trimmedName,
+      cuisine: settingsForm.cuisine.trim(),
+      address: trimmedAddress,
+      phone: settingsForm.phone.trim(),
+      description: settingsForm.description.trim(),
+    };
+
+    const nextAccounts = currentAccount
+      ? accounts.map((account) => (account.restaurantId === activeRest.id || account.email === activeRest.email ? nextAccount : account))
+      : accounts;
+
+    if (nextAccounts) {
+      writeAccounts(nextAccounts);
+    }
+
+    syncRest(updatedRest);
+    setSettingsStatus("Configuración guardada correctamente");
+    setSettingsForm((prev) => ({ ...prev, password: "", confirmPassword: "" }));
+  };
+
   const restaurantTables = activeRest?.tables || [];
   const restaurantElements = activeRest?.layoutElements || [];
 
@@ -749,7 +815,7 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
             { key: "overview", icon: "📊", label: "Resumen" },
             { key: "floorplan", icon: "🗺️", label: "Plano" },
             { key: "reservations", icon: "📅", label: "Reservas" },
-            { key: "register", icon: "➕", label: "Nuevo restaurante" },
+            { key: "settings", icon: "⚙️", label: "Configuración" },
           ].map(n => (
             <button key={n.key} onClick={() => setTab(n.key)}
               style={{ width: "100%", textAlign: "left", background: tab === n.key ? "#f59e0b22" : "transparent", border: tab === n.key ? "1px solid #f59e0b44" : "1px solid transparent", borderRadius: 10, padding: "10px 14px", color: tab === n.key ? "#f59e0b" : "#94a3b8", cursor: "pointer", marginBottom: 4, display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
@@ -779,6 +845,62 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
         </div>
 
         <div style={{ padding: "28px" }}>
+
+          {/* SETTINGS */}
+          {tab === "settings" && (
+            <div style={{ background: APP_CARD, border: `1.5px solid ${APP_BORDER}`, borderRadius: 18, padding: "24px", boxShadow: CARD_SHADOW }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 20 }}>
+                <div>
+                  <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: "#0f172a" }}>Configuración del restaurante</h2>
+                  <p style={{ margin: "6px 0 0", color: "#64748b", fontSize: 14 }}>Cambia los datos del negocio y la contraseña de acceso.</p>
+                </div>
+                <button onClick={updateRestaurantSettings} style={{ background: "#0f172a", color: "white", border: "none", borderRadius: 12, padding: "12px 18px", fontWeight: 700, cursor: "pointer" }}>
+                  Guardar cambios
+                </button>
+              </div>
+
+              {settingsStatus && (
+                <div style={{ marginBottom: 16, padding: "10px 12px", borderRadius: 10, background: "#f0fdf4", color: "#166534", fontSize: 14, fontWeight: 600 }}>
+                  {settingsStatus}
+                </div>
+              )}
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 16 }}>
+                <div>
+                  <Label>Nombre del restaurante</Label>
+                  <input value={settingsForm.name} onChange={(e) => setSettingsForm((prev) => ({ ...prev, name: e.target.value }))} style={inputStyle} />
+                </div>
+                <div>
+                  <Label>Tipo de cocina</Label>
+                  <input value={settingsForm.cuisine} onChange={(e) => setSettingsForm((prev) => ({ ...prev, cuisine: e.target.value }))} style={inputStyle} />
+                </div>
+                <div>
+                  <Label>Dirección</Label>
+                  <input value={settingsForm.address} onChange={(e) => setSettingsForm((prev) => ({ ...prev, address: e.target.value }))} style={inputStyle} />
+                </div>
+                <div>
+                  <Label>Teléfono</Label>
+                  <input value={settingsForm.phone} onChange={(e) => setSettingsForm((prev) => ({ ...prev, phone: e.target.value }))} style={inputStyle} />
+                </div>
+                <div style={{ gridColumn: "1 / -1" }}>
+                  <Label>Descripción</Label>
+                  <textarea value={settingsForm.description} onChange={(e) => setSettingsForm((prev) => ({ ...prev, description: e.target.value }))} rows={4} style={{ ...inputStyle, resize: "vertical" }} />
+                </div>
+                <div>
+                  <Label>Correo de acceso</Label>
+                  <input value={settingsForm.email} onChange={(e) => setSettingsForm((prev) => ({ ...prev, email: e.target.value }))} placeholder="correo@restaurante.com" style={inputStyle} />
+                </div>
+                <div>
+                  <Label>Nueva contraseña</Label>
+                  <input type="password" value={settingsForm.password} onChange={(e) => setSettingsForm((prev) => ({ ...prev, password: e.target.value }))} placeholder="Dejar vacío para no cambiar" style={inputStyle} />
+                </div>
+                <div>
+                  <Label>Confirmar contraseña</Label>
+                  <input type="password" value={settingsForm.confirmPassword} onChange={(e) => setSettingsForm((prev) => ({ ...prev, confirmPassword: e.target.value }))} placeholder="Repite la nueva contraseña" style={inputStyle} />
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* OVERVIEW */}
           {tab === "overview" && (
