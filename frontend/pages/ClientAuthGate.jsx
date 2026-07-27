@@ -20,7 +20,7 @@ export default function ClientAuthGate({ onBack, onContinue }) {
         try {
           registeredUser = await requestJson(`${API_BASE_URL}/auth/register`, {
             method: "POST",
-            body: JSON.stringify({ username: authEmail, password: authPassword, displayName: authName }),
+            body: JSON.stringify({ username: authEmail, password: authPassword, displayName: authName, role: "USER" }),
           });
         } catch (registerErr) {
           console.warn("Registro previo falló, se intentará login", registerErr);

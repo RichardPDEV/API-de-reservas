@@ -35,4 +35,15 @@ class UserServiceTest {
         assertNotNull(user);
         assertEquals(UserRole.USER, user.getRole());
     }
+
+    @Test
+    void register_assignsRequestedRole() {
+        when(userRepository.findByUsername("restaurante")).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User user = userService.register("restaurante", "123456", "Restaurante prueba", UserRole.OWNER);
+
+        assertNotNull(user);
+        assertEquals(UserRole.OWNER, user.getRole());
+    }
 }

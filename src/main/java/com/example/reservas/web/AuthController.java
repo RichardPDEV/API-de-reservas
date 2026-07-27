@@ -46,7 +46,8 @@ public class AuthController {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", "campos_requeridos"));
         }
 
-        var u = userService.register(username, password, displayName);
+        var role = req.role() == null ? com.example.reservas.domain.UserRole.USER : req.role();
+        var u = userService.register(username, password, displayName, role);
         var body = new java.util.LinkedHashMap<String, Object>();
         body.put("id", u.getId());
         body.put("username", u.getUsername());

@@ -1,7 +1,7 @@
 package com.example.reservas.web.dto;
 
 public class AuthRequests {
-    public record Register(String username, String password, String displayName) {}
+    public record Register(String username, String password, String displayName, com.example.reservas.domain.UserRole role) {}
     public record Login(String username, String password) {}
     public record Confirm(String username, String code) {}
     public record Resend(String username) {}

@@ -21,6 +21,10 @@ public class UserService {
     public UserService(UserRepository userRepo) { this.userRepo = userRepo; }
 
     public User register(String username, String password, String displayName) {
+        return register(username, password, displayName, com.example.reservas.domain.UserRole.USER);
+    }
+
+    public User register(String username, String password, String displayName, com.example.reservas.domain.UserRole role) {
         String normalizedUsername = username == null ? "" : username.trim().toLowerCase();
         String normalizedDisplayName = displayName == null ? "" : displayName.trim();
         if (normalizedUsername.isBlank() || password == null || password.isBlank() || normalizedDisplayName.isBlank()) {
@@ -31,7 +35,7 @@ public class UserService {
         u.setUsername(normalizedUsername);
         u.setPasswordHash(passwordEncoder.encode(password));
         u.setDisplayName(normalizedDisplayName);
-        u.setRole(com.example.reservas.domain.UserRole.USER);
+        u.setRole(role == null ? com.example.reservas.domain.UserRole.USER : role);
         // generate confirmation code and expiry
         String code = generateNumericCode(6);
         u.setConfirmationCode(code);

@@ -30,7 +30,7 @@ export default function RestaurantAuth({ onRegister, onLogin, onBack, errorMessa
 
       const payload = await requestJson(`${API_BASE_URL}/auth/register`, {
         method: "POST",
-        body: JSON.stringify({ username: email, password, displayName: name }),
+        body: JSON.stringify({ username: email, password, displayName: name, role: "OWNER" }),
       });
 
       setPendingRegistrationData({ ...registerForm, email, password, name });
