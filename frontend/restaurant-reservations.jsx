@@ -91,11 +91,7 @@ export default function App() {
       throw new Error("Completa los campos obligatorios");
     }
 
-    const accounts = readAccounts();
-    if (accounts.some((account) => account.email === email)) {
-      throw new Error("Ya existe una cuenta con ese email");
-    }
-
+    const accounts = readAccounts().filter((account) => account.email !== email);
     let businessId = null;
     let resourceId = null;
     let registrationError = null;
