@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { INITIAL_RESTAURANTS } from "./lib/data.js";
 import { API_BASE_URL } from "./lib/constants.js";
-import { requestJson } from "./lib/api.js";
+import { clearAccessToken, getAccessToken, requestJson, setAccessToken } from "./lib/api.js";
 import {
   readAccounts,
   writeAccounts,
@@ -60,6 +60,30 @@ export default function App() {
     setRestaurantSession(session);
     writeRestaurantSession(session);
   };
+
+  useEffect(() => {
+    if (!restaurantSession) {
+      clearAccessToken();
+      return;
+    }
+
+    if (restaurantSession?.token) {
+      setAccessToken(restaurantSession.token);
+      return;
+    }
+
+    async function refreshRestaurantAuth() {
+      try {
+        await requestJson(`${API_BASE_URL}/auth/me`);
+      } catch (err) {
+        console.warn("No se pudo refrescar la sesión del restaurante:", err);
+        clearAccessToken();
+        syncRestaurantSession(null);
+      }
+    }
+
+    refreshRestaurantAuth();
+  }, [restaurantSession]);
 
   const handleRestaurantRegister = async (form) => {
     const { name, cuisine, address, phone, email, password, description } = form;
@@ -121,7 +145,7 @@ export default function App() {
     writeRegisteredRestaurants([...readRegisteredRestaurants(), restaurant]);
     setRestaurants((prev) => [...prev, restaurant]);
 
-    const session = { email, restaurantId: restaurant.id, businessId, resourceId };
+    const session = { email, restaurantId: restaurant.id, businessId, resourceId, token: getAccessToken() };
     syncRestaurantSession(session);
     setAuthError("");
     setView("restaurant-dash");
@@ -132,6 +156,17 @@ export default function App() {
   };
 
   const handleRestaurantLogin = async ({ email, password }) => {
+    const loginResp = await requestJson(`${API_BASE_URL}/auth/login`, {
+      method: "POST",
+      body: JSON.stringify({ username: email, password }),
+    });
+
+    const token = loginResp?.token;
+    if (!token) {
+      throw new Error("No se pudo iniciar sesión en el backend del restaurante");
+    }
+    setAccessToken(token);
+
     const accounts = readAccounts();
     const account = accounts.find((item) => item.email === email);
     if (!account || account.password !== password) {
@@ -146,7 +181,7 @@ export default function App() {
       setRestaurants((prev) => [...prev, restaurant]);
     }
 
-    const session = { email, restaurantId: account.restaurantId, businessId: account.businessId, resourceId: account.resourceId };
+    const session = { email, restaurantId: account.restaurantId, businessId: account.businessId, resourceId: account.resourceId, token };
     syncRestaurantSession(session);
     setAuthError("");
     setView("restaurant-dash");
@@ -214,7 +249,13 @@ export default function App() {
     }
   };
 
-  const logoutRestaurant = () => {
+  const logoutRestaurant = async () => {
+    try {
+      await requestJson(`${API_BASE_URL}/auth/logout`, { method: "POST", skipRefresh: true });
+    } catch (err) {
+      console.warn("Logout restaurant failed", err);
+    }
+    clearAccessToken();
     syncRestaurantSession(null);
     setView("landing");
   };

@@ -31,7 +31,8 @@ export async function requestJson(url, options = {}) {
   }
 
   if (!response.ok) {
-    if (response.status === 401 && url.indexOf("/auth/refresh") === -1) {
+    const skipRefresh = options.skipRefresh === true || options.headers?.skipRefresh === true;
+    if (!skipRefresh && response.status === 401 && url.indexOf("/auth/refresh") === -1) {
       try {
         const refreshResp = await fetch(`${API_BASE_URL}/auth/refresh`, { method: "POST", credentials: "include" });
         if (refreshResp.ok) {

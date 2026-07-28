@@ -15,10 +15,6 @@ export async function fetchBusiness(businessId) {
 }
 
 export async function ensureBackendSeed(restaurant) {
-  if (!getAccessToken()) {
-    return null;
-  }
-
   const seed = readSeedStorage();
   const existing = seed[restaurant.id];
 
@@ -145,7 +141,7 @@ export async function loadBusinessProfile(restaurant) {
 
 export async function persistRestaurantProfile(restaurant) {
   const backend = await ensureBackendSeed(restaurant);
-  let businessId = backend.businessId || restaurant.backendBusinessId || restaurant.businessId;
+  let businessId = backend?.businessId || restaurant.backendBusinessId || restaurant.businessId;
   if (!businessId) {
     throw new Error("El restaurante no tiene businessId para persistir en el backend");
   }
