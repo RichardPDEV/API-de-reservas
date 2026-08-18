@@ -64,5 +64,3 @@ app:
 
 # Desarrollo local: cookies con defaults seguros para HTTP local.
 # CORS y cookies en prod se exigen vía variables de entorno (ProdStartupValidator).
-APP_COOKIE_SECURE: ${APP_COOKIE_SECURE:false}
-APP_COOKIE_SAMESITE: ${APP_COOKIE_SAMESITE:Lax}
