@@ -1,0 +1,64 @@
+# Nginx — API en producción (TLS terminado aquí, backend HTTP en localhost:8080)
+#
+# 1. Copia a /etc/nginx/sites-available/api.reservas.tu-dominio.com
+# 2. Ajusta server_name y rutas de certificados (p. ej. Certbot/Let's Encrypt)
+# 3. ln -s .../sites-available/... sites-enabled/ && nginx -t && systemctl reload nginx
+#
+# La API usa server.forward-headers-strategy=framework y confía en estos headers
+# para isSecure(), redirects y auditoría de IP.
+# En producción el JAR debe escuchar solo en 127.0.0.1:8080 (no exponer 8080 a Internet).
+
+map $http_upgrade $connection_upgrade {
+    default upgrade;
+    ''      close;
+}
+
+# Redirige todo HTTP a HTTPS (obligatorio en prod)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name api.reservas.tu-dominio.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name api.reservas.tu-dominio.com;
+
+    ssl_certificate     /etc/letsencrypt/live/api.reservas.tu-dominio.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/api.reservas.tu-dominio.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+
+    # No reescribir Location del backend; Spring genera URLs con X-Forwarded-*
+    proxy_redirect off;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host  $host;
+        proxy_set_header X-Forwarded-Port  443;
+
+        proxy_set_header Upgrade    $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
+
+        proxy_read_timeout  60s;
+        proxy_send_timeout  60s;
+    }
+}

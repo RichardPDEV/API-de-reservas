@@ -1,0 +1,49 @@
+# Nginx — Frontend estático en producción (TLS terminado aquí)
+#
+# 1. Copia a /etc/nginx/sites-available/reservas.tu-dominio.com
+# 2. Ajusta server_name, root (dist del frontend) y rutas de certificados
+# 3. ln -s .../sites-available/... sites-enabled/ && nginx -t && systemctl reload nginx
+#
+# En producción la API vive en un subdominio distinto (p. ej. api.reservas.tu-dominio.com).
+# El build del frontend debe usar VITE_API_BASE_URL=https://api.reservas.tu-dominio.com
+
+# Redirige todo HTTP a HTTPS (obligatorio en prod)
+server {
+    listen 80;
+    listen [::]:80;
+    server_name reservas.tu-dominio.com;
+
+    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name reservas.tu-dominio.com;
+
+    ssl_certificate     /etc/letsencrypt/live/reservas.tu-dominio.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/reservas.tu-dominio.com/privkey.pem;
+    ssl_protocols       TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers off;
+
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "SAMEORIGIN" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+    root /var/www/reservas/frontend/dist;
+    index index.html;
+
+    gzip on;
+    gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}

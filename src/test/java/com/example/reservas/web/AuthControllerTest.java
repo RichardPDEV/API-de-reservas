@@ -20,6 +20,7 @@ import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Optional;
 
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -42,6 +43,32 @@ class AuthControllerTest {
     void setUp() {
         SecurityContextHolder.clearContext();
         mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(userService, jwtUtil)).build();
+    }
+
+    @Test
+    void registerIgnoresClientRoleAndAlwaysCreatesUser() throws Exception {
+        User user = new User();
+        user.setId(1L);
+        user.setUsername("nuevo@example.com");
+        user.setDisplayName("Nuevo usuario");
+        user.setRole(UserRole.USER);
+
+        when(userService.register("nuevo@example.com", "password123", "Nuevo usuario")).thenReturn(user);
+
+        mockMvc.perform(post("/auth/register")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "username": "nuevo@example.com",
+                                  "password": "password123",
+                                  "displayName": "Nuevo usuario",
+                                  "role": "OWNER"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.role").value("USER"));
+
+        verify(userService).register("nuevo@example.com", "password123", "Nuevo usuario");
     }
 
     @Test
@@ -82,7 +109,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("refreshToken="))))
                 .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("Max-Age=0"))))
-                .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("SameSite=None"))))
+                .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("SameSite=Lax"))))
                 .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("HttpOnly"))));
     }
 
@@ -104,7 +131,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value("new-access-token"))
                 .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("refreshToken=new-refresh-token"))))
-                .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("SameSite=None"))))
+                .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("SameSite=Lax"))))
                 .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("HttpOnly"))));
     }
 
@@ -126,7 +153,7 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.token").value("access-token"))
                 .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("refreshToken=refresh-token"))))
-                .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("SameSite=None"))))
+                .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("SameSite=Lax"))))
                 .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("HttpOnly"))));
     }
 
@@ -153,6 +180,32 @@ class AuthControllerTest {
                         .content("{\"username\":\"ana@example.com\",\"password\":\"password\"}"))
                 .andExpect(status().isOk())
                 .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("; Secure"))));
+    }
+
+    @Test
+    void loginMarksCookieSecureInProductionConfig() throws Exception {
+        AuthController controller = new AuthController(userService, jwtUtil);
+        setField(controller, "cookieSameSite", "Lax");
+        setField(controller, "cookieSecure", true);
+
+        User user = new User();
+        user.setId(7L);
+        user.setUsername("ana@example.com");
+        user.setDisplayName("Ana Pérez");
+        user.setRole(UserRole.USER);
+
+        when(userService.authenticate("ana@example.com", "password")).thenReturn(Optional.of(user));
+        when(jwtUtil.generateAccessToken("ana@example.com", "USER")).thenReturn("access-token");
+        when(jwtUtil.generateRefreshToken("ana@example.com")).thenReturn("refresh-token");
+
+        mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
+
+        mockMvc.perform(post("/auth/login")
+                        .contentType("application/json")
+                        .content("{\"username\":\"ana@example.com\",\"password\":\"password\"}"))
+                .andExpect(status().isOk())
+                .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("; Secure"))))
+                .andExpect(header().stringValues("Set-Cookie", org.hamcrest.Matchers.hasItem(org.hamcrest.Matchers.containsString("SameSite=Lax"))));
     }
 
     private void setField(Object target, String name, Object value) throws Exception {

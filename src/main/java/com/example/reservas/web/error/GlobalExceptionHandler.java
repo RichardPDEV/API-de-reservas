@@ -5,6 +5,7 @@ import com.example.reservas.service.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
+import org.springframework.core.env.Environment;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -14,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.OffsetDateTime;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,6 +23,13 @@ import java.util.Map;
 public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+    private static final String GENERIC_INTERNAL_ERROR_MESSAGE = "Error interno del servidor";
+
+    private final Environment environment;
+
+    public GlobalExceptionHandler(Environment environment) {
+        this.environment = environment;
+    }
 
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ApiError> handleNotFound(NotFoundException ex, org.springframework.web.context.request.WebRequest req) {
@@ -50,14 +59,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleOthers(Exception ex, org.springframework.web.context.request.WebRequest req) {
         log.error("Error inesperado al procesar petición: {}", req.getDescription(false), ex);
+        if (isProdProfile()) {
+            return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", GENERIC_INTERNAL_ERROR_MESSAGE, req, null);
+        }
         Map<String, String> details = new HashMap<>();
         details.put("exception", ex.getClass().getName());
         details.put("message", ex.getMessage());
         if (ex.getCause() != null) {
             details.put("cause", ex.getCause().getMessage());
         }
-        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", 
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR",
                 "Error inesperado: " + ex.getClass().getSimpleName(), req, details);
+    }
+
+    private boolean isProdProfile() {
+        return Arrays.asList(environment.getActiveProfiles()).contains("prod");
     }
 
     private ResponseEntity<ApiError> build(HttpStatus status, String code, String message, org.springframework.web.context.request.WebRequest req, Map<String,String> details) {

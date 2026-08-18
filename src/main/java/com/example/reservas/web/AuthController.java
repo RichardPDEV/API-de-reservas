@@ -26,8 +26,8 @@ public class AuthController {
     @Value("${APP_COOKIE_SECURE:false}")
     private boolean cookieSecure = false;
 
-    @Value("${APP_COOKIE_SAMESITE:None}")
-    private String cookieSameSite = "None";
+    @Value("${APP_COOKIE_SAMESITE:Lax}")
+    private String cookieSameSite = "Lax";
 
     @Value("${APP_COOKIE_DOMAIN:}")
     private String cookieDomain = "";
@@ -46,8 +46,7 @@ public class AuthController {
             return ResponseEntity.badRequest().body(java.util.Map.of("error", "campos_requeridos"));
         }
 
-        var role = req.role() == null ? com.example.reservas.domain.UserRole.USER : req.role();
-        var u = userService.register(username, password, displayName, role);
+        var u = userService.register(username, password, displayName);
         var body = new java.util.LinkedHashMap<String, Object>();
         body.put("id", u.getId());
         body.put("username", u.getUsername());
@@ -215,7 +214,20 @@ public class AuthController {
     }
 
     private boolean isCookieSecure() {
-        return cookieSecure || "None".equalsIgnoreCase(cookieSameSite);
+        return cookieSecure || "None".equalsIgnoreCase(normalizedSameSite());
+    }
+
+    private String normalizedSameSite() {
+        if (cookieSameSite == null || cookieSameSite.isBlank()) {
+            return "Lax";
+        }
+        String value = cookieSameSite.trim();
+        return switch (value.toLowerCase()) {
+            case "none" -> "None";
+            case "strict" -> "Strict";
+            case "lax" -> "Lax";
+            default -> value;
+        };
     }
 
     private String cookieToHeader(Cookie cookie) {
@@ -227,7 +239,7 @@ public class AuthController {
         if (cookieDomain != null && !cookieDomain.isBlank()) {
             sb.append("; Domain=").append(cookieDomain);
         }
-        sb.append("; SameSite=").append(cookieSameSite);
+        sb.append("; SameSite=").append(normalizedSameSite());
         sb.append("; HttpOnly");
         return sb.toString();
     }
