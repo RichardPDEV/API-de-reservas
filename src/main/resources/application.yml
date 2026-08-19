@@ -5,8 +5,6 @@ server:
 spring:
   profiles:
     default: local
-
-spring:
   jpa:
     hibernate:
       ddl-auto: validate
