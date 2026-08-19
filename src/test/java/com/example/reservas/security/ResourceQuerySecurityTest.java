@@ -43,6 +43,9 @@ class ResourceQuerySecurityTest {
     void resourceQueriesRequireAuthentication() throws Exception {
         mockMvc.perform(get("/api/resources/1/reservations").param("date", "2026-07-05"))
                 .andExpect(status().isUnauthorized());
+
+        mockMvc.perform(get("/v1/resources/1/reservations").param("date", "2026-07-05"))
+            .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -55,6 +58,10 @@ class ResourceQuerySecurityTest {
         mockMvc.perform(get("/api/resources/1/reservations").param("date", "2026-07-05")
                         .header("Authorization", "Bearer valid-token"))
                 .andExpect(status().isOk());
+
+        mockMvc.perform(get("/v1/resources/1/reservations").param("date", "2026-07-05")
+                .header("Authorization", "Bearer valid-token"))
+            .andExpect(status().isOk());
     }
 
     @Test

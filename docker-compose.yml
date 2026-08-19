@@ -23,6 +23,7 @@ services:
     build: .
     env_file: .env
     environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-local}
       - DB_URL=jdbc:postgresql://postgres:5432/reservas
       - DB_USERNAME=reservas
       - DB_PASSWORD=reservas

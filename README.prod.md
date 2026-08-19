@@ -4,10 +4,10 @@ Si ya tienes el servidor y los subdominios preparados, este proyecto está listo
 
 ## 1) Variables de entorno
 
-Copia los ejemplos y reemplaza los valores reales:
+Crea el entorno desde el ejemplo productivo y reemplaza todos los valores por secretos reales. En un servidor real, inyecta estas variables desde el gestor de secretos del proveedor y no guardes el archivo con credenciales en el repositorio:
 
 ```bash
-cp .env.example .env
+cp .env.production.example .env
 cp frontend/.env.production.example frontend/.env.production
 ```
 
@@ -115,6 +115,18 @@ readinessProbe:
 
 Configura el health check contra `/actuator/health/readiness` y considera la instancia caída si el código HTTP no es 2xx.
 
+### Logs y alertas mínimas
+
+En producción `logback-spring.xml` escribe JSON a stdout. Conecta esa salida al agregador de logs del proveedor y crea alertas para estos eventos:
+
+| Evento | Condición inicial sugerida |
+|--------|----------------------------|
+| `event=server_error` | 5 o más eventos en 5 minutos |
+| `event=rate_limit_exceeded` | 20 o más eventos en 5 minutos por IP |
+| `event=login_failed` | 10 o más eventos en 5 minutos por IP |
+
+Los eventos de autenticación no incluyen el nombre de usuario para evitar exponer datos personales en los logs. Ajusta los umbrales con tráfico real y añade un canal de notificación que permita reconocer y cerrar la alerta.
+
 ## 3) Configuración recomendada para tu subdominio
 
 - Frontend: `https://reservas.tu-dominio.com`
@@ -188,6 +200,33 @@ Para levantar solo la base de datos en el servidor:
 ```bash
 DB_PORT=5432 DB_PASSWORD=tu-password-segura ./deploy/run-postgres.sh
 ```
+
+### Backups y migraciones durante el deploy
+
+Antes de arrancar una nueva versión de la API, crea y verifica un backup:
+
+```bash
+PGHOST=127.0.0.1 \
+PGPORT=5432 \
+PGDATABASE=reservas \
+PGUSER=reservas \
+PGPASSWORD="$DB_PASSWORD" \
+BACKUP_DIR=/var/backups/reservas \
+RETENTION_DAYS=14 \
+./deploy/backup-postgres.sh
+```
+
+El script usa formato custom de PostgreSQL, valida que el dump sea legible y elimina backups antiguos según `RETENTION_DAYS`. `PGPASSWORD` debe venir del gestor de secretos del servidor y no de un archivo versionado.
+
+La secuencia del deploy debe ser:
+
+1. Crear y verificar el backup.
+2. Publicar la nueva imagen o JAR.
+3. Arrancar la API con `SPRING_PROFILES_ACTIVE=prod`; Flyway aplicará las migraciones pendientes antes de aceptar tráfico.
+4. Esperar a que `GET /actuator/health/readiness` responda `200`.
+5. Enviar tráfico a la nueva versión.
+
+Si Flyway falla, el proceso de la API debe quedar fuera de servicio y el deploy debe detenerse; no se debe ignorar el código de salida ni continuar con el cambio de tráfico.
 
 ## Docker Compose vs producción real
 

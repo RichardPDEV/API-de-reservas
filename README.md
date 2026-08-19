@@ -7,10 +7,9 @@
 [![PostgreSQL](https://img.shields.io/badge/DB-PostgreSQL-336791.svg)](https://www.postgresql.org/)
 [![Testcontainers](https://img.shields.io/badge/Testcontainers-Ready-0db7ed.svg)](https://www.testcontainers.org/)
 
-API REST para gestionar reservas con reglas de negocio (capacidad, solapes, cancelación FREE/LATE), disponibilidad diaria cacheada en memoria, y migraciones con Flyway. Incluye CI con GitHub Actions.
+API REST y frontend web para gestionar reservas con reglas de negocio (capacidad, solapes, cancelación FREE/LATE), disponibilidad diaria cacheada en memoria y migraciones con Flyway. Incluye CI con GitHub Actions y una guía de despliegue productivo con JAR, Nginx y PostgreSQL dedicado.
 
 - Cálculo de día y claves de caché normalizadas en UTC.
-- Separación clara entre Core (Richard) y API (Juan).
 
 ---
 
@@ -22,6 +21,7 @@ API REST para gestionar reservas con reglas de negocio (capacidad, solapes, canc
 - [Configuración](#configuración)
 - [Ejecución](#ejecución)
 - [Docker / Docker Compose](#docker--docker-compose)
+- [Producción](#producción)
 - [Tests](#tests)
 - [CI (GitHub Actions)](#ci-github-actions)
 - [API (endpoints básicos)](#api-endpoints-básicos)
@@ -54,28 +54,33 @@ API REST para gestionar reservas con reglas de negocio (capacidad, solapes, canc
 - JDK 21+
 - Maven 3.9+
 - Docker (recomendado para Postgres y Testcontainers)
-- PostgreSQL 16.x
+- PostgreSQL 15+ (la imagen de desarrollo y el script de PostgreSQL usan 15)
 
 ---
 
 ## Inicio rápido
 
-1) Levanta dependencias (opcional con Docker Compose):
+1) Copia la configuración local:
+```bash
+cp .env.example .env
+```
+
+2) Levanta dependencias (opcional con Docker Compose):
 ```bash
 docker compose up -d
 ```
 
-2) Ejecuta la aplicación:
+3) Ejecuta la aplicación con el perfil local:
 ```bash
-./mvnw spring-boot:run
+SPRING_PROFILES_ACTIVE=local ./mvnw spring-boot:run
 ```
 
-3) Ejecuta tests:
+4) Ejecuta tests:
 ```bash
 ./mvnw test
 ```
 
-4) Empaqueta el artefacto:
+5) Empaqueta el artefacto:
 ```bash
 ./mvnw -DskipTests=true package
 ```
@@ -84,44 +89,15 @@ docker compose up -d
 
 ## Configuración
 
-Archivo base `src/main/resources/application.yml` (ejemplo):
-```yaml
-spring:
-  datasource:
-    url: jdbc:postgresql://localhost:5432/reservas
-    username: reservas
-    password: reservas
+La configuración común está en `src/main/resources/application.yml`; los perfiles están en:
+- `application-local.yml`: desarrollo local y Docker Compose.
+- `application-staging.yml`: entorno de staging con secretos externos obligatorios.
+- `application-prod.yml`: producción real, sin defaults inseguros y con validación de arranque.
 
-  jpa:
-    hibernate:
-      ddl-auto: validate      # o update en desarrollo
-    properties:
-      hibernate.jdbc.time_zone: UTC
-
-  flyway:
-    enabled: true
-
-  cache:
-    type: simple
-
-server:
-  port: 8080
-```
-
-Habilitar caché:
-```java
-@SpringBootApplication
-@EnableCaching
-public class Application {
-  public static void main(String[] args) {
-    SpringApplication.run(Application.class, args);
-  }
-}
-```
-
-Variables de entorno habituales:
-- `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`
-- `SPRING_FLYWAY_ENABLED=true`
+Variables principales:
+- `DB_URL`, `DB_USERNAME`, `DB_PASSWORD`
+- `APP_JWT_SECRET`, `APP_CORS_ALLOWED_ORIGINS`
+- `APP_COOKIE_SECURE`, `APP_COOKIE_SAMESITE`, opcionalmente `APP_COOKIE_DOMAIN`
 - `MAIL_HOST=smtp.resend.com`
 - `MAIL_PORT=587`
 - `MAIL_USERNAME=apikey`
@@ -136,12 +112,19 @@ Variables de entorno habituales:
 
 - Desarrollo local:
   ```bash
-  ./mvnw spring-boot:run
-  ```
-- Perfil específico:
-  ```bash
   SPRING_PROFILES_ACTIVE=local ./mvnw spring-boot:run
   ```
+- Staging:
+  ```bash
+  SPRING_PROFILES_ACTIVE=staging ./mvnw spring-boot:run
+  ```
+- Producción:
+  ```bash
+  SPRING_PROFILES_ACTIVE=prod java -jar target/API-de-reservas-0.0.1-SNAPSHOT.jar
+  ```
+
+La producción requiere variables externas reales. No copies `.env` de desarrollo al servidor.
+Consulta [README.prod.md](README.prod.md) para TLS, Nginx, cookies, health checks, backups, migraciones y el orden de despliegue.
 
 ---
 
@@ -162,10 +145,12 @@ docker compose down
 docker compose down -v
 ```
 
-Variables típicas en `docker-compose.yml`:
-- `SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/reservas`
-- `SPRING_DATASOURCE_USERNAME=reservas`
-- `SPRING_DATASOURCE_PASSWORD=reservas`
+Compose es únicamente para desarrollo local y activa el perfil `local`. No debe usarse como despliegue de producción ni expone una base de datos gestionada.
+
+Variables de Compose:
+- `DB_URL=jdbc:postgresql://postgres:5432/reservas`
+- `DB_USERNAME=reservas`
+- `DB_PASSWORD=reservas`
 
 ---
 
@@ -202,7 +187,7 @@ Opcionales: publicar artefactos del build, reportes JUnit o cobertura (se pueden
 
 ## API (endpoints básicos)
 
-Base URL: `http://localhost:8080`
+Base URL local: `http://localhost:8080`
 
 - POST `/api/reservations`
   - Crea una reserva, valida capacidad/solapes y limpia caché de días afectados.
@@ -234,7 +219,20 @@ Base URL: `http://localhost:8080`
 - GET `/api/resources/{resourceId}/availability?date=YYYY-MM-DD`
   - Ventanas libres cacheadas para el día (UTC).
 
-Prueba con swagger: http://localhost:8080/swagger-ui.html.
+En local, Swagger está disponible en `http://localhost:8080/swagger-ui.html`. En producción se deshabilita por seguridad.
+
+## Producción
+
+El despliegue real no usa Docker Compose: construye el JAR y el frontend, ejecuta la API en `127.0.0.1:8080`, termina TLS con Nginx y sirve `frontend/dist` como contenido estático.
+
+```bash
+./mvnw -DskipTests package
+cd frontend
+npm install
+npm run build
+```
+
+Antes de iniciar la API, configura `SPRING_PROFILES_ACTIVE=prod` y todas las variables obligatorias. Verifica `GET /actuator/health/readiness` antes de enviar tráfico. La guía completa, ejemplos Nginx y procedimiento de backup están en [README.prod.md](README.prod.md).
 
 
 ## Solución de problemas

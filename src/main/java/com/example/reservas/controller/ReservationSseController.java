@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RestController
-@RequestMapping("/api/resources")
+@RequestMapping({"/v1/resources", "/api/resources"})
 @Tag(name = "SSE", description = "Canal de eventos en tiempo real para reservas")
 public class ReservationSseController {
 

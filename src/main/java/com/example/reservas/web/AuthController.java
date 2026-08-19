@@ -32,6 +32,9 @@ public class AuthController {
     @Value("${APP_COOKIE_DOMAIN:}")
     private String cookieDomain = "";
 
+    @Value("${APP_JWT_ACCESS_VALIDITY_MS:900000}")
+    private int accessTokenMaxAgeSeconds = 900;
+
     @Value("${app.auth.debug-confirmation-code:false}")
     private boolean debugConfirmationCode = false;
 
@@ -69,7 +72,7 @@ public class AuthController {
 
         var userOpt = userService.authenticate(username, password);
         if (userOpt.isEmpty()) {
-            log.warn("Login failed for username={} from ip={}", username, extractClientIp(request));
+            log.warn("event=login_failed ip={}", extractClientIp(request));
             return ResponseEntity.status(401).body(java.util.Map.of("error", "invalid_credentials"));
         }
         var user = userOpt.get();
@@ -84,14 +87,24 @@ public class AuthController {
         if (cookieDomain != null && !cookieDomain.isBlank()) {
             cookie.setDomain(cookieDomain);
         }
-        var resp = ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookieToHeader(cookie)).body(java.util.Map.of(
+        Cookie accessCookie = new Cookie("accessToken", access);
+        accessCookie.setHttpOnly(true);
+        accessCookie.setPath("/");
+        accessCookie.setMaxAge(Math.max(1, accessTokenMaxAgeSeconds / 1000));
+        accessCookie.setSecure(isCookieSecure());
+        if (cookieDomain != null && !cookieDomain.isBlank()) {
+            accessCookie.setDomain(cookieDomain);
+        }
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookieToHeader(cookie))
+            .header(HttpHeaders.SET_COOKIE, cookieToHeader(accessCookie))
+            .body(java.util.Map.of(
                 "token", access,
                 "id", user.getId(),
                 "username", user.getUsername(),
                 "displayName", user.getDisplayName(),
                 "role", user.getRole().name()
-        ));
-        return resp;
+            ));
     }
 
     @PostMapping("/confirm")
@@ -117,28 +130,28 @@ public class AuthController {
     public ResponseEntity<?> refresh(HttpServletRequest request) {
         Cookie[] cookies = request.getCookies();
         if (cookies == null) {
-            log.warn("Refresh failed: no cookies from ip={}", extractClientIp(request));
+            log.warn("event=refresh_failed reason=no_cookies ip={}", extractClientIp(request));
             return ResponseEntity.status(401).body(java.util.Map.of("error","no_refresh"));
         }
         String refresh = null;
         for (var c : cookies) if ("refreshToken".equals(c.getName())) refresh = c.getValue();
         if (refresh == null) {
-            log.warn("Refresh failed: missing refresh cookie from ip={}", extractClientIp(request));
+            log.warn("event=refresh_failed reason=missing_cookie ip={}", extractClientIp(request));
             return ResponseEntity.status(401).body(java.util.Map.of("error","no_refresh"));
         }
         if (!jwtUtil.validate(refresh)) {
-            log.warn("Refresh failed: invalid token from ip={}", extractClientIp(request));
+            log.warn("event=refresh_failed reason=invalid_token ip={}", extractClientIp(request));
             return ResponseEntity.status(401).body(java.util.Map.of("error","invalid_refresh"));
         }
         String username = jwtUtil.extractUsername(refresh);
         var userOpt = userService.findByUsername(username);
         if (userOpt.isEmpty()) {
-            log.warn("Refresh failed: user not found for username={} from ip={}", username, extractClientIp(request));
+            log.warn("event=refresh_failed reason=user_not_found ip={}", extractClientIp(request));
             return ResponseEntity.status(401).body(java.util.Map.of("error","invalid_refresh"));
         }
         var user = userOpt.get();
         if (user.getRefreshToken() == null || !user.getRefreshToken().equals(refresh)) {
-            log.warn("Refresh failed: token mismatch for username={} from ip={}", username, extractClientIp(request));
+            log.warn("event=refresh_failed reason=token_mismatch ip={}", extractClientIp(request));
             return ResponseEntity.status(401).body(java.util.Map.of("error","invalid_refresh"));
         }
         var newAccess = jwtUtil.generateAccessToken(username, user.getRole().name());
@@ -152,8 +165,19 @@ public class AuthController {
         if (cookieDomain != null && !cookieDomain.isBlank()) {
             cookie.setDomain(cookieDomain);
         }
-        log.info("Refresh succeeded for username={} from ip={}", username, extractClientIp(request));
-        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookieToHeader(cookie)).body(java.util.Map.of("token", newAccess));
+        Cookie accessCookie = new Cookie("accessToken", newAccess);
+        accessCookie.setHttpOnly(true);
+        accessCookie.setPath("/");
+        accessCookie.setMaxAge(Math.max(1, accessTokenMaxAgeSeconds / 1000));
+        accessCookie.setSecure(isCookieSecure());
+        if (cookieDomain != null && !cookieDomain.isBlank()) {
+            accessCookie.setDomain(cookieDomain);
+        }
+        log.info("event=refresh_succeeded ip={}", extractClientIp(request));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.SET_COOKIE, cookieToHeader(cookie))
+                .header(HttpHeaders.SET_COOKIE, cookieToHeader(accessCookie))
+                .body(java.util.Map.of("token", newAccess));
     }
 
     @GetMapping("/me")
@@ -201,8 +225,19 @@ public class AuthController {
         if (cookieDomain != null && !cookieDomain.isBlank()) {
             clearCookie.setDomain(cookieDomain);
         }
+        Cookie clearAccessCookie = new Cookie("accessToken", "");
+        clearAccessCookie.setHttpOnly(true);
+        clearAccessCookie.setPath("/");
+        clearAccessCookie.setMaxAge(0);
+        clearAccessCookie.setSecure(isCookieSecure());
+        if (cookieDomain != null && !cookieDomain.isBlank()) {
+            clearAccessCookie.setDomain(cookieDomain);
+        }
         log.info("Logout completed for request from ip={}", extractClientIp(request));
-        return ResponseEntity.ok().header(HttpHeaders.SET_COOKIE, cookieToHeader(clearCookie)).build();
+        return ResponseEntity.ok()
+            .header(HttpHeaders.SET_COOKIE, cookieToHeader(clearCookie))
+            .header(HttpHeaders.SET_COOKIE, cookieToHeader(clearAccessCookie))
+            .build();
     }
 
     private String extractClientIp(HttpServletRequest request) {

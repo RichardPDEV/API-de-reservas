@@ -1,7 +1,7 @@
 package com.example.reservas.web.error;
 
-import com.example.reservas.service.NotFoundException;
-import com.example.reservas.service.ValidationException;
+import com.example.reservas.domain.NotFoundException;
+import com.example.reservas.domain.ValidationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
@@ -58,7 +58,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiError> handleOthers(Exception ex, org.springframework.web.context.request.WebRequest req) {
-        log.error("Error inesperado al procesar petición: {}", req.getDescription(false), ex);
+        log.error("event=server_error request={}", req.getDescription(false), ex);
         if (isProdProfile()) {
             return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", GENERIC_INTERNAL_ERROR_MESSAGE, req, null);
         }

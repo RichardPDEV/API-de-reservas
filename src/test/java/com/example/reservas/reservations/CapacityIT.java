@@ -2,7 +2,7 @@ package com.example.reservas.reservations;
 
 import com.example.reservas.domain.Resource;
 import com.example.reservas.domain.Reservation;
-import com.example.reservas.service.ValidationException;
+import com.example.reservas.domain.ValidationException;
 import com.example.reservas.dto.CreateReservationRequest;
 import com.example.reservas.repo.CancellationPolicyRepository;
 import com.example.reservas.repo.ReservationRepository;

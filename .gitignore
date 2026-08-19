@@ -29,6 +29,10 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 
+### Frontend generated files ###
+frontend/node_modules/
+frontend/dist/
+
 ### VS Code ###
 .vscode/
 
@@ -36,3 +40,6 @@ build/
 .env
 .env.*
 !.env.example
+!.env.prod.example
+!.env.production.example
+!frontend/.env.production.example

@@ -30,11 +30,11 @@ public class ResourceController {
     @com.example.reservas.security.RequireBusinessOwner(pathVariable = "businessId")
     public ResourceResponse create(@PathVariable Long businessId, @Valid @RequestBody CreateResourceRequest req, java.security.Principal principal) {
         if (!businessId.equals(req.businessId())) {
-            throw new com.example.reservas.service.ValidationException("businessId en path y body deben coincidir");
+            throw new com.example.reservas.domain.ValidationException("businessId en path y body deben coincidir");
         }
         // ownership is validated by aspect
         com.example.reservas.domain.Business business = businessRepo.findById(businessId)
-            .orElseThrow(() -> new com.example.reservas.service.NotFoundException("Business %d no existe".formatted(businessId)));
+            .orElseThrow(() -> new com.example.reservas.domain.NotFoundException("Business %d no existe".formatted(businessId)));
         Resource r = resourceService.create(req.businessId(), req.name(), req.capacity());
         return toResponse(r);
     }

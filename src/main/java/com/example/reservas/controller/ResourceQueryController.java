@@ -24,7 +24,7 @@ import java.util.List;
  * Agrupa endpoints relacionados con la consulta de información de recursos.
  */
 @RestController
-@RequestMapping("/api/resources")
+@RequestMapping({"/v1/resources", "/api/resources"})
 @Tag(name = "Resource Queries", description = "Consultas de recursos: reservas y disponibilidad")
 public class ResourceQueryController {
 

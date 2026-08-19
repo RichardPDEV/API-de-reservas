@@ -74,7 +74,7 @@ public class RequireBusinessOwnerAspect {
 
         Optional<Business> bizOpt = businessRepo.findById(businessId);
         if (bizOpt.isEmpty()) {
-            throw new com.example.reservas.service.NotFoundException("Business %d no existe".formatted(businessId));
+            throw new com.example.reservas.domain.NotFoundException("Business %d no existe".formatted(businessId));
         }
         Business biz = bizOpt.get();
         if (biz.getOwnerId() == null) {

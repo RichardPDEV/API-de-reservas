@@ -251,7 +251,7 @@ export default function ClientReservation({ restaurant, onBack, onConfirm }) {
     }
 
     try {
-      reservations = await requestJson(`${API_BASE_URL}/api/resources/${resourceId}/reservations?date=${date}`);
+      reservations = await requestJson(`${API_BASE_URL}/v1/resources/${resourceId}/reservations?date=${date}`);
       setDisplayTables(buildAvailability(restaurant.tables || [], reservations || []));
     } catch (err) {
       console.warn("No se pudo cargar las reservas del día:", err);
@@ -260,7 +260,7 @@ export default function ClientReservation({ restaurant, onBack, onConfirm }) {
     }
 
     try {
-      windows = await requestJson(`${API_BASE_URL}/api/resources/${resourceId}/availability?date=${date}`);
+      windows = await requestJson(`${API_BASE_URL}/v1/resources/${resourceId}/availability?date=${date}`);
       setAvailabilityWindows(windows || []);
       const evaluation = evaluateRequestedInterval(windows || [], time, endTime);
       setAvailabilityMessage(evaluation.message);
@@ -391,12 +391,9 @@ export default function ClientReservation({ restaurant, onBack, onConfirm }) {
     let reconnectTimer = null;
     const connectStream = () => {
       if (!resourceId || typeof window === "undefined") return;
-      const token = getAccessToken();
-      const streamUrl = token
-        ? `${API_BASE_URL}/api/resources/${resourceId}/events?token=${encodeURIComponent(token)}`
-        : `${API_BASE_URL}/api/resources/${resourceId}/events`;
+      const streamUrl = `${API_BASE_URL}/v1/resources/${resourceId}/events`;
       try {
-        eventSource = new EventSource(streamUrl);
+        eventSource = new EventSource(streamUrl, { withCredentials: true });
         eventSource.addEventListener("reservation-change", () => {
           loadAvailability();
         });

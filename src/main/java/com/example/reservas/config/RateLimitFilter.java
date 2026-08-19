@@ -11,6 +11,8 @@ import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -20,6 +22,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class RateLimitFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
 
     private final Map<String, Bucket> globalBuckets = new ConcurrentHashMap<>();
     private final Map<String, Bucket> hotBuckets = new ConcurrentHashMap<>();
@@ -49,7 +53,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String method = request.getMethod();
 
         boolean isHot = ("/v1/availability".equals(path) && "GET".equalsIgnoreCase(method))
-                     || ("/v1/reservations".equals(path) && "POST".equalsIgnoreCase(method));
+                     || (("/v1/reservations".equals(path) || "/api/reservations".equals(path)) && "POST".equalsIgnoreCase(method))
+                     || ((path.startsWith("/v1/resources/") || path.startsWith("/api/resources/"))
+                         && path.endsWith("/availability") && "GET".equalsIgnoreCase(method));
         boolean isAuth = "/auth/login".equals(path)
                 || "/auth/register".equals(path)
                 || "/auth/refresh".equals(path);
@@ -59,7 +65,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             String key = ip + "|HOT";
             Bucket b = hotBuckets.computeIfAbsent(key, k -> newHotBucket());
             if (!b.tryConsume(1)) {
-                tooMany(response, 60);
+                tooMany(request, response, 60);
                 return;
             }
         }
@@ -68,7 +74,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
             String key = ip + "|AUTH";
             Bucket b = authBuckets.computeIfAbsent(key, k -> newAuthBucket());
             if (!b.tryConsume(1)) {
-                tooMany(response, 60);
+                tooMany(request, response, 60);
                 return;
             }
         }
@@ -77,7 +83,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         String gkey = ip + "|GLOBAL";
         Bucket gb = globalBuckets.computeIfAbsent(gkey, k -> newGlobalBucket());
         if (!gb.tryConsume(1)) {
-            tooMany(response, 60);
+            tooMany(request, response, 60);
             return;
         }
 
@@ -92,7 +98,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         return request.getRemoteAddr();
     }
 
-    private void tooMany(HttpServletResponse response, int retryAfterSeconds) throws IOException {
+    private void tooMany(HttpServletRequest request, HttpServletResponse response, int retryAfterSeconds) throws IOException {
+        log.warn("event=rate_limit_exceeded method={} path={} ip={}",
+                request.getMethod(), request.getRequestURI(), extractClientIp(request));
         response.setStatus(429);
         response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
         response.setContentType("application/json");

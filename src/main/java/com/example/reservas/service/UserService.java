@@ -1,5 +1,6 @@
 package com.example.reservas.service;
 
+import com.example.reservas.domain.ValidationException;
 import com.example.reservas.domain.User;
 import com.example.reservas.repo.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,12 +10,13 @@ import org.springframework.stereotype.Service;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Optional;
-import java.util.Random;
+import java.security.SecureRandom;
 
 @Service
 public class UserService {
     private final UserRepository userRepo;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    private final SecureRandom secureRandom = new SecureRandom();
     @Autowired(required = false)
     private EmailService emailService;
 
@@ -63,9 +65,8 @@ public class UserService {
     }
 
     private String generateNumericCode(int length) {
-        Random rnd = new Random();
         StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < length; i++) sb.append(rnd.nextInt(10));
+        for (int i = 0; i < length; i++) sb.append(secureRandom.nextInt(10));
         return sb.toString();
     }
 

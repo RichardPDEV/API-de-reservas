@@ -1,5 +1,7 @@
 package com.example.reservas.service;
 
+import com.example.reservas.domain.NotFoundException;
+import com.example.reservas.domain.ValidationException;
 import com.example.reservas.domain.*;
 import com.example.reservas.dto.CreateReservationRequest;
 import com.example.reservas.dto.ReservationResponse;

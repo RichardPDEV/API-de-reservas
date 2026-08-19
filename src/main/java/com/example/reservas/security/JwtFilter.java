@@ -23,13 +23,17 @@ public class JwtFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
         String auth = request.getHeader("Authorization");
-        String tokenParam = request.getParameter("token");
         String token = null;
 
         if (auth != null && auth.startsWith("Bearer ")) {
             token = auth.substring(7);
-        } else if (tokenParam != null && !tokenParam.isBlank()) {
-            token = tokenParam;
+        } else if (request.getCookies() != null) {
+            for (var cookie : request.getCookies()) {
+                if ("accessToken".equals(cookie.getName()) && !cookie.getValue().isBlank()) {
+                    token = cookie.getValue();
+                    break;
+                }
+            }
         }
 
         if (token != null && jwtUtil.validate(token)) {

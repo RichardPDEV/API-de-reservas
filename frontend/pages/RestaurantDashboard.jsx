@@ -668,7 +668,7 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
     let cancelled = false;
     const refreshReservations = async () => {
       try {
-        const reservations = await requestJson(`${API_BASE_URL}/api/resources/${resourceId}/reservations?date=${today}`);
+        const reservations = await requestJson(`${API_BASE_URL}/v1/resources/${resourceId}/reservations?date=${today}`);
         if (cancelled) return;
 
         const now = new Date();
@@ -689,12 +689,9 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
     let reconnectTimer = null;
     const connectStream = () => {
       if (!resourceId || typeof window === "undefined") return;
-      const token = getAccessToken();
-      const streamUrl = token
-        ? `${API_BASE_URL}/api/resources/${resourceId}/events?token=${encodeURIComponent(token)}`
-        : `${API_BASE_URL}/api/resources/${resourceId}/events`;
+      const streamUrl = `${API_BASE_URL}/v1/resources/${resourceId}/events`;
       try {
-        eventSource = new EventSource(streamUrl);
+        eventSource = new EventSource(streamUrl, { withCredentials: true });
         eventSource.addEventListener("reservation-change", () => {
           refreshReservations();
         });
