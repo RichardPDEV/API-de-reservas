@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { API_BASE_URL } from "../lib/constants.js";
 import { requestJson, setAccessToken, clearAccessToken } from "../lib/api.js";
-import { readClientSession, writeClientSession } from "../lib/storage.js";
+import { readClientSession, writeClientSession, writeRestaurantSession } from "../lib/storage.js";
 
 const AuthContext = createContext(null);
 
@@ -45,6 +45,10 @@ export function AuthProvider({ children }) {
             role: profile.role,
           }
         : null;
+      if (normalizedUser?.role && normalizedUser.role !== "USER") {
+        clearSession();
+        return;
+      }
       setUser(normalizedUser);
       setIsAuthenticated(Boolean(normalizedUser));
       if (normalizedUser) {
@@ -85,6 +89,11 @@ export function AuthProvider({ children }) {
       throw new Error("No se recibió un token de acceso");
     }
 
+    if (loginResp?.role && loginResp.role !== "USER") {
+      clearAccessToken();
+      throw new Error("Esta cuenta pertenece a un restaurante");
+    }
+
     setAccessToken(token);
     const normalizedUser = {
       username: loginResp?.username || username,
@@ -98,6 +107,7 @@ export function AuthProvider({ children }) {
       displayName: normalizedUser.displayName,
       role: normalizedUser.role,
     });
+    writeRestaurantSession(null);
     setAuthError("");
     return normalizedUser;
   };

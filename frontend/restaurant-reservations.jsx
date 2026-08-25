@@ -9,6 +9,7 @@ import {
   writeRegisteredRestaurants,
   readRestaurantSession,
   writeRestaurantSession,
+  writeClientSession,
 } from "./lib/storage.js";
 import { mapRestaurantToBackend, buildIsoDateTime, getEndTimeFromStart } from "./lib/restaurantBackend.js";
 import { normalizeRestaurantLayout, sameRestaurantId } from "./lib/layout.js";
@@ -74,7 +75,10 @@ export default function App() {
 
     async function refreshRestaurantAuth() {
       try {
-        await requestJson(`${API_BASE_URL}/auth/me`);
+        const profile = await requestJson(`${API_BASE_URL}/auth/me`);
+        if (profile?.role && profile.role !== "OWNER") {
+          throw new Error("La sesión activa pertenece a un cliente");
+        }
       } catch (err) {
         console.warn("No se pudo refrescar la sesión del restaurante:", err);
         clearAccessToken();
@@ -142,6 +146,7 @@ export default function App() {
     setRestaurants((prev) => [...prev, restaurant]);
 
     const session = { email, restaurantId: restaurant.id, businessId, resourceId, token: getAccessToken() };
+    writeClientSession(null);
     syncRestaurantSession(session);
     setAuthError("");
     setView("restaurant-dash");
@@ -161,6 +166,10 @@ export default function App() {
     if (!token) {
       throw new Error("No se pudo iniciar sesión en el backend del restaurante");
     }
+    if (loginResp?.role && loginResp.role !== "OWNER") {
+      clearAccessToken();
+      throw new Error("Esta cuenta pertenece a un cliente");
+    }
     setAccessToken(token);
 
     const accounts = readAccounts();
@@ -178,6 +187,7 @@ export default function App() {
     }
 
     const session = { email, restaurantId: account.restaurantId, businessId: account.businessId, resourceId: account.resourceId, token };
+    writeClientSession(null);
     syncRestaurantSession(session);
     setAuthError("");
     setView("restaurant-dash");
