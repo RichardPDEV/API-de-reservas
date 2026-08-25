@@ -82,6 +82,9 @@ export default function RestaurantAuth({ onRegister, onLogin, onBack, errorMessa
       if (!token) {
         throw new Error("No se pudo iniciar sesión después de confirmar");
       }
+      if (loginResp?.role && loginResp.role !== "OWNER") {
+        throw new Error("La cuenta se creó con rol de cliente. Regístrala de nuevo como restaurante");
+      }
       setAccessToken(token);
       if (!pendingRegistrationData) {
         throw new Error("No hay datos de registro pendientes");

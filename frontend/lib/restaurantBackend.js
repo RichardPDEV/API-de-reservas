@@ -109,12 +109,16 @@ export async function loadBusinessProfile(restaurant) {
     const backend = await requestJson(`${API_BASE_URL}/v1/businesses/${businessId}`);
     let tables = restaurant.tables;
     let layoutElements = restaurant.layoutElements || [];
+    let floorCount = restaurant.floorCount || 1;
+    let floorNames = restaurant.floorNames || { 1: "Piso principal" };
     if (backend.tableLayoutJson) {
       try {
         const parsed = JSON.parse(backend.tableLayoutJson);
         if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
           tables = parsed.tables || restaurant.tables;
           layoutElements = parsed.layoutElements || restaurant.layoutElements || [];
+          floorCount = Math.max(1, Number(parsed.floorCount) || floorCount);
+          floorNames = parsed.floorNames || floorNames;
         } else {
           tables = parsed || restaurant.tables;
         }
@@ -133,6 +137,8 @@ export async function loadBusinessProfile(restaurant) {
       description: backend.description || restaurant.description,
       tables,
       layoutElements,
+      floorCount,
+      floorNames,
     };
   } catch {
     return restaurant;
@@ -159,7 +165,12 @@ export async function persistRestaurantProfile(restaurant) {
           address: restaurant.address,
           phone: restaurant.phone,
           description: restaurant.description,
-          tableLayoutJson: JSON.stringify({ tables: restaurant.tables, layoutElements: restaurant.layoutElements || [] }),
+          tableLayoutJson: JSON.stringify({
+            tables: restaurant.tables,
+            layoutElements: restaurant.layoutElements || [],
+            floorCount: restaurant.floorCount || 1,
+            floorNames: restaurant.floorNames || { 1: "Piso principal" },
+          }),
         }),
       });
     } catch (err) {

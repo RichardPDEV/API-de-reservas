@@ -31,6 +31,8 @@ export function normalizeRestaurantLayout(restaurant) {
     tables: restaurant.tables || [],
     layoutElements: restaurant.layoutElements || [],
     reservations: restaurant.reservations || [],
+    floorCount: Math.max(1, Number(restaurant.floorCount) || 1),
+    floorNames: restaurant.floorNames || { 1: "Piso principal" },
     openTime: restaurant.openTime || "12:00",
     closeTime: restaurant.closeTime || "23:00",
     cuisine: restaurant.cuisine || "",

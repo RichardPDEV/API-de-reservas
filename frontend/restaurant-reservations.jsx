@@ -157,9 +157,10 @@ export default function App() {
   };
 
   const handleRestaurantLogin = async ({ email, password }) => {
+    const normalizedEmail = (email || "").trim().toLowerCase();
     const loginResp = await requestJson(`${API_BASE_URL}/auth/login`, {
       method: "POST",
-      body: JSON.stringify({ username: email, password }),
+      body: JSON.stringify({ username: normalizedEmail, password }),
     });
 
     const token = loginResp?.token;
@@ -173,7 +174,7 @@ export default function App() {
     setAccessToken(token);
 
     const accounts = readAccounts();
-    const account = accounts.find((item) => item.email === email);
+    const account = accounts.find((item) => item.email?.trim().toLowerCase() === normalizedEmail);
     if (!account || account.password !== password) {
       throw new Error("Email o contraseña incorrectos");
     }
@@ -186,7 +187,7 @@ export default function App() {
       setRestaurants((prev) => [...prev, restaurant]);
     }
 
-    const session = { email, restaurantId: account.restaurantId, businessId: account.businessId, resourceId: account.resourceId, token };
+    const session = { email: normalizedEmail, restaurantId: account.restaurantId, businessId: account.businessId, resourceId: account.resourceId, token };
     writeClientSession(null);
     syncRestaurantSession(session);
     setAuthError("");

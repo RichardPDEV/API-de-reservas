@@ -63,7 +63,6 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
   const [floorFilter, setFloorFilter] = useState("all");
   const [capacityFilter, setCapacityFilter] = useState("all");
   const [previewMode, setPreviewMode] = useState(false);
-  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [floorPlanZoom, setFloorPlanZoom] = useState(1);
   const [floorCount, setFloorCount] = useState(1);
   const [floorNames, setFloorNames] = useState({ 1: "Piso principal" });
@@ -113,7 +112,8 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
     const inferredCount = Math.max(1, activeRest.floorCount || 1, floorsFromTables, floorsFromElements);
     setFloorCount((prev) => (prev === inferredCount ? prev : inferredCount));
     setFloorNames((prev) => {
-      const next = { ...prev };
+      const next = { ...(activeRest.floorNames || { 1: "Piso principal" }) };
+      next[1] = next[1] || "Piso principal";
       for (let n = 2; n <= inferredCount; n += 1) {
         if (!next[n]) next[n] = `Piso ${n}`;
       }
@@ -126,6 +126,7 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
   const [regDone, setRegDone] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [pendingSaves, setPendingSaves] = useState(() => readSaveQueue().length);
   const lastSavedSignatureRef = useRef(null);
 
@@ -160,11 +161,12 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
     if (!activeRest || !onSaveRestaurant) return;
     setIsSaving(true);
     setSaveStatus("Guardando perfil...");
+    const restaurantToSave = { ...activeRest, floorCount, floorNames };
 
     try {
-      const saved = await persistRestaurantProfile(activeRest);
+      const saved = await persistRestaurantProfile(restaurantToSave);
       const updated = {
-        ...activeRest,
+        ...restaurantToSave,
         backendBusinessId: saved.id || activeRest.backendBusinessId,
         backendResourceId: activeRest.backendResourceId || activeRest.resourceId,
         name: saved.name || activeRest.name,
@@ -185,15 +187,16 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
         floorCount,
         floorNames,
       });
+      setHasUnsavedChanges(false);
       setSaveStatus("Plano guardado en tu perfil");
     } catch (error) {
       console.error("No se pudo guardar el perfil en el backend:", error);
       // Try one quick retry for transient errors
       try {
         await new Promise(r => setTimeout(r, 400));
-        const saved2 = await persistRestaurantProfile(activeRest);
+        const saved2 = await persistRestaurantProfile(restaurantToSave);
         const updated2 = {
-          ...activeRest,
+          ...restaurantToSave,
           backendBusinessId: saved2.id || activeRest.backendBusinessId,
           backendResourceId: activeRest.backendResourceId || activeRest.resourceId,
           name: saved2.name || activeRest.name,
@@ -214,12 +217,13 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
           floorCount,
           floorNames,
         });
+        setHasUnsavedChanges(false);
         setSaveStatus("Plano guardado en tu perfil (reintento exitoso)");
       } catch (err2) {
         // Final fallback: keep local, enqueue save for background retry, and show detailed message
-        onSaveRestaurant(activeRest);
+        onSaveRestaurant(restaurantToSave);
         try {
-          enqueueSaveItem({ ts: Date.now(), data: activeRest });
+          enqueueSaveItem({ ts: Date.now(), data: restaurantToSave });
           setPendingSaves(readSaveQueue().length);
         } catch (e) {
           console.warn("Failed to enqueue save:", e);
@@ -232,34 +236,10 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
     setTimeout(() => setSaveStatus(""), 2500);
   };
 
-  useEffect(() => {
-    if (!activeRest || !autoSaveEnabled) return;
-
-    const signature = JSON.stringify({
-      id: activeRest.id,
-      name: activeRest.name,
-      address: activeRest.address,
-      description: activeRest.description,
-      tables: activeRest.tables || [],
-      layoutElements: activeRest.layoutElements || [],
-      reservations: activeRest.reservations || [],
-      floorCount,
-      floorNames,
-    });
-
-    if (lastSavedSignatureRef.current === signature) return;
-
-    const timer = window.setTimeout(() => {
-      lastSavedSignatureRef.current = signature;
-      saveRestaurantProfile();
-    }, 900);
-
-    return () => window.clearTimeout(timer);
-  }, [activeRest?.id, activeRest?.name, activeRest?.address, activeRest?.description, activeRest?.tables, activeRest?.layoutElements, activeRest?.reservations, autoSaveEnabled, floorCount, floorNames]);
-
   const syncRest = useCallback((updated) => {
     setRestList(prev => prev.map(r => r.id === updated.id ? updated : r));
     setActiveRest(updated);
+    setHasUnsavedChanges(true);
   }, []);
 
   const updateTableStatus = (tableId, status) => {
@@ -334,6 +314,7 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
     const name = response.trim() || `Piso ${nextFloor}`;
     setFloorCount(nextFloor);
     setFloorNames((prev) => ({ ...prev, [nextFloor]: name }));
+    setHasUnsavedChanges(true);
     setActiveFloor(nextFloor);
     setActiveElementType(null);
     setSelectedTableId(null);
@@ -367,6 +348,7 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
     syncRest(updated);
     setFloorCount(nextFloor);
     setFloorNames((prev) => ({ ...prev, [nextFloor]: name }));
+    setHasUnsavedChanges(true);
     setActiveFloor(nextFloor);
     setSelectedTableId(null);
     setSelectedLayoutElementId(null);
@@ -393,6 +375,7 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
     syncRest(updated);
     setActiveFloor(nextFloor);
     setFloorCount((prev) => Math.max(1, prev - 1));
+    setHasUnsavedChanges(true);
     setFloorNames((prev) => {
       const next = { ...prev };
       delete next[floorToRemove];
@@ -1067,9 +1050,6 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
                   <button onClick={() => setPreviewMode((value) => !value)} style={{ background: previewMode ? "#0f172a" : "white", color: previewMode ? "white" : "#0f172a", border: "1px solid #e2e8f0", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                     {previewMode ? "Cerrar vista previa" : "Vista previa cliente"}
                   </button>
-                  <button onClick={() => setAutoSaveEnabled((value) => !value)} style={{ background: autoSaveEnabled ? "#fef3c7" : "#e2e8f0", color: autoSaveEnabled ? "#92400e" : "#334155", border: "1px solid #e2e8f0", borderRadius: 12, padding: "10px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                    {autoSaveEnabled ? "Auto-guardado ON" : "Auto-guardado OFF"}
-                  </button>
                   <button onClick={() => setFloorPlanZoom((value) => Math.max(0.8, Math.min(1.7, value + 0.1)))} style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 12, padding: "10px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                     + Zoom
                   </button>
@@ -1093,6 +1073,11 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
               </div>
               {saveStatus && (
                 <div style={{ marginBottom: 18, color: "#16a34a", fontSize: 14, fontWeight: 600 }}>{saveStatus}</div>
+              )}
+              {hasUnsavedChanges && (
+                <div style={{ marginBottom: 18, color: "#92400e", background: "#fef3c7", border: "1px solid #fcd34d", borderRadius: 10, padding: "10px 12px", fontSize: 14, fontWeight: 600 }}>
+                  Tienes cambios sin guardar. Recuerda guardar el plano.
+                </div>
               )}
 
               {showAddTable && (

@@ -46,14 +46,14 @@ class AuthControllerTest {
     }
 
     @Test
-    void registerIgnoresClientRoleAndAlwaysCreatesUser() throws Exception {
+    void registerPreservesRequestedOwnerRole() throws Exception {
         User user = new User();
         user.setId(1L);
         user.setUsername("nuevo@example.com");
         user.setDisplayName("Nuevo usuario");
-        user.setRole(UserRole.USER);
+        user.setRole(UserRole.OWNER);
 
-        when(userService.register("nuevo@example.com", "password123", "Nuevo usuario")).thenReturn(user);
+        when(userService.register("nuevo@example.com", "password123", "Nuevo usuario", UserRole.OWNER)).thenReturn(user);
 
         mockMvc.perform(post("/auth/register")
                         .contentType("application/json")
@@ -66,9 +66,9 @@ class AuthControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.role").value("USER"));
+                .andExpect(jsonPath("$.role").value("OWNER"));
 
-        verify(userService).register("nuevo@example.com", "password123", "Nuevo usuario");
+            verify(userService).register("nuevo@example.com", "password123", "Nuevo usuario", UserRole.OWNER);
     }
 
     @Test
