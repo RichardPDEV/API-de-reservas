@@ -88,6 +88,8 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
     confirmPassword: "",
   });
   const [settingsStatus, setSettingsStatus] = useState("");
+  const activeRestRef = useRef(activeRest);
+  activeRestRef.current = activeRest;
 
   useEffect(() => {
     if (!activeRest) return;
@@ -672,9 +674,11 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
         if (cancelled) return;
 
         const now = new Date();
-        const nextTables = buildTableOccupancy(activeRest.tables || [], reservations || [], { now, guests: 1 });
+        const currentRest = activeRestRef.current;
+        if (!currentRest || !sameRestaurantId(currentRest.id, activeRest.id)) return;
+        const nextTables = buildTableOccupancy(currentRest.tables || [], reservations || [], { now, guests: 1 });
 
-        const nextRest = { ...activeRest, tables: nextTables, reservations: reservations || [] };
+        const nextRest = { ...currentRest, tables: nextTables, reservations: reservations || [] };
         syncRest(nextRest);
         setLastReservationsSync(new Date());
       } catch (error) {
