@@ -35,10 +35,16 @@ export default function App() {
     async function loadRestaurants() {
       const registered = readRegisteredRestaurants().map(normalizeRestaurantLayout).filter(Boolean);
       const combined = [...INITIAL_RESTAURANTS, ...registered];
+      let publicRestaurants = [];
+
+      try {
+        publicRestaurants = await loadPublicRestaurants();
+      } catch (error) {
+        console.warn("No se pudieron cargar los restaurantes públicos:", error);
+      }
 
       try {
         const liveRestaurants = await Promise.all(combined.map(mapRestaurantToBackend));
-        const publicRestaurants = await loadPublicRestaurants();
         const mergedRestaurants = [...liveRestaurants];
         publicRestaurants.forEach((publicRestaurant) => {
           const existingIndex = mergedRestaurants.findIndex((restaurant) =>

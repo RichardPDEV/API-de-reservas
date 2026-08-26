@@ -47,7 +47,7 @@ public class SecurityConfig {
                     .requestMatchers(HttpMethod.POST, "/auth/logout").permitAll()
                     // Probes de liveness/readiness (Actuator, incluye chequeo de DB en readiness)
                     .requestMatchers("/actuator/health/**").permitAll()
-                    .requestMatchers(HttpMethod.GET, "/v1/businesses/**", "/v1/resources/**").permitAll()
+                    .requestMatchers(HttpMethod.GET, "/v1/businesses").permitAll()
                     // Assets estaticos (favicon, webjars, recursos empaquetados)
                     .requestMatchers(
                             "/favicon.ico",
