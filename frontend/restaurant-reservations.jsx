@@ -11,7 +11,7 @@ import {
   writeRestaurantSession,
   writeClientSession,
 } from "./lib/storage.js";
-import { mapRestaurantToBackend, buildIsoDateTime, getEndTimeFromStart } from "./lib/restaurantBackend.js";
+import { mapRestaurantToBackend, loadPublicRestaurants, buildIsoDateTime, getEndTimeFromStart } from "./lib/restaurantBackend.js";
 import { normalizeRestaurantLayout, sameRestaurantId } from "./lib/layout.js";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
@@ -38,8 +38,20 @@ export default function App() {
 
       try {
         const liveRestaurants = await Promise.all(combined.map(mapRestaurantToBackend));
+        const publicRestaurants = await loadPublicRestaurants();
+        const mergedRestaurants = [...liveRestaurants];
+        publicRestaurants.forEach((publicRestaurant) => {
+          const existingIndex = mergedRestaurants.findIndex((restaurant) =>
+            restaurant.backendBusinessId && restaurant.backendBusinessId === publicRestaurant.backendBusinessId
+          );
+          if (existingIndex >= 0) {
+            mergedRestaurants[existingIndex] = { ...publicRestaurant, ...mergedRestaurants[existingIndex] };
+          } else {
+            mergedRestaurants.push(publicRestaurant);
+          }
+        });
         if (isMounted) {
-          setRestaurants(liveRestaurants);
+          setRestaurants(mergedRestaurants);
           setBackendStatus("connected");
         }
       } catch (error) {

@@ -62,6 +62,12 @@ public class BusinessController {
         return toResponse(business);
     }
 
+    @GetMapping
+    @Operation(summary = "Listar negocios públicos")
+    public java.util.List<BusinessResponse> list() {
+        return businessRepo.findAll().stream().map(this::toResponse).toList();
+    }
+
     @PutMapping("/{id}")
     @Operation(summary = "Actualizar perfil de negocio")
     @com.example.reservas.security.RequireBusinessOwner(pathVariable = "id")

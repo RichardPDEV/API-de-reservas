@@ -14,6 +14,44 @@ export async function fetchBusiness(businessId) {
   }
 }
 
+export async function loadPublicRestaurants() {
+  const businesses = await requestJson(`${API_BASE_URL}/v1/businesses`);
+  return Promise.all((businesses || [])
+    .filter((business) => business.type === "RESTAURANT")
+    .map(async (business) => {
+      let layout = { tables: [], layoutElements: [], floorCount: 1, floorNames: { 1: "Piso principal" } };
+      if (business.tableLayoutJson) {
+        try {
+          const parsed = JSON.parse(business.tableLayoutJson);
+          layout = Array.isArray(parsed) ? { tables: parsed } : { ...layout, ...parsed };
+        } catch {
+          // Ignore malformed legacy layouts and keep the restaurant visible.
+        }
+      }
+
+      let resourceId = null;
+      try {
+        const resources = await requestJson(`${API_BASE_URL}/v1/resources?businessId=${business.id}&page=0&size=1`);
+        resourceId = resources?.content?.[0]?.id || null;
+      } catch {
+        // A restaurant can still appear in the catalogue if resources are unavailable.
+      }
+
+      return normalizeRestaurantLayout({
+        id: `backend-${business.id}`,
+        backendBusinessId: business.id,
+        backendResourceId: resourceId,
+        name: business.name,
+        type: business.type,
+        cuisine: business.cuisine,
+        address: business.address,
+        phone: business.phone,
+        description: business.description,
+        ...layout,
+      });
+    }));
+}
+
 export async function ensureBackendSeed(restaurant) {
   const seed = readSeedStorage();
   const existing = seed[restaurant.id];
