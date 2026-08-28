@@ -113,7 +113,9 @@ export default function App() {
       throw new Error("Completa los campos obligatorios");
     }
 
-    const accounts = readAccounts().filter((account) => account.email !== email);
+    const accounts = readAccounts().filter(
+      (account) => account.email?.trim().toLowerCase() !== email
+    );
     let businessId = null;
     let resourceId = null;
     let registrationError = null;
