@@ -21,6 +21,39 @@ import ClientReservation from "./pages/ClientReservation.jsx";
 import RestaurantAuth from "./pages/RestaurantAuth.jsx";
 import RestaurantDashboard from "./pages/RestaurantDashboard.jsx";
 
+const dedupeRestaurants = (items = []) => {
+  const seen = new Map();
+
+  for (const entry of items) {
+    const restaurant = normalizeRestaurantLayout(entry);
+    if (!restaurant) continue;
+
+    const backendKey = restaurant.backendBusinessId ? `backend:${restaurant.backendBusinessId}` : null;
+    const localKey = restaurant.id != null ? `local:${restaurant.id}` : null;
+    const fallbackKey = restaurant.name && restaurant.address ? `name:${restaurant.name}|${restaurant.address}` : null;
+    const key = backendKey || localKey || fallbackKey;
+    if (!key) continue;
+
+    const current = seen.get(key);
+    if (!current) {
+      seen.set(key, restaurant);
+      continue;
+    }
+
+    seen.set(key, {
+      ...current,
+      ...restaurant,
+      tables: restaurant.tables?.length ? restaurant.tables : current.tables || [],
+      layoutElements: restaurant.layoutElements?.length ? restaurant.layoutElements : current.layoutElements || [],
+      reservations: restaurant.reservations?.length ? restaurant.reservations : current.reservations || [],
+      floorNames: restaurant.floorNames || current.floorNames || { 1: "Piso principal" },
+      floorCount: Math.max(Number(restaurant.floorCount) || 1, Number(current.floorCount) || 1),
+    });
+  }
+
+  return [...seen.values()];
+};
+
 export default function App() {
   const [restaurants, setRestaurants] = useState(INITIAL_RESTAURANTS);
   const [view, setView] = useState("landing"); // landing | client-home | client-reserve | restaurant-auth | restaurant-dash
@@ -33,29 +66,19 @@ export default function App() {
     let isMounted = true;
 
     async function loadRestaurants() {
-      const registered = readRegisteredRestaurants().map(normalizeRestaurantLayout).filter(Boolean);
-      const combined = [...INITIAL_RESTAURANTS, ...registered];
+      const registered = dedupeRestaurants(readRegisteredRestaurants().map(normalizeRestaurantLayout).filter(Boolean));
+      const combined = dedupeRestaurants([...INITIAL_RESTAURANTS, ...registered]);
       let publicRestaurants = [];
 
       try {
-        publicRestaurants = await loadPublicRestaurants();
+        publicRestaurants = dedupeRestaurants(await loadPublicRestaurants());
       } catch (error) {
         console.warn("No se pudieron cargar los restaurantes públicos:", error);
       }
 
       try {
-        const liveRestaurants = await Promise.all(combined.map(mapRestaurantToBackend));
-        const mergedRestaurants = [...liveRestaurants];
-        publicRestaurants.forEach((publicRestaurant) => {
-          const existingIndex = mergedRestaurants.findIndex((restaurant) =>
-            restaurant.backendBusinessId && restaurant.backendBusinessId === publicRestaurant.backendBusinessId
-          );
-          if (existingIndex >= 0) {
-            mergedRestaurants[existingIndex] = { ...publicRestaurant, ...mergedRestaurants[existingIndex] };
-          } else {
-            mergedRestaurants.push(publicRestaurant);
-          }
-        });
+        const liveRestaurants = dedupeRestaurants(await Promise.all(combined.map(mapRestaurantToBackend)));
+        const mergedRestaurants = dedupeRestaurants([...liveRestaurants, ...publicRestaurants]);
         if (isMounted) {
           setRestaurants(mergedRestaurants);
           setBackendStatus("connected");
@@ -162,8 +185,9 @@ export default function App() {
     });
 
     writeAccounts([...accounts, { email, password, restaurantId: restaurant.id, businessId, resourceId }]);
-    writeRegisteredRestaurants([...readRegisteredRestaurants(), restaurant]);
-    setRestaurants((prev) => [...prev, restaurant]);
+    const mergedRegistered = dedupeRestaurants([...readRegisteredRestaurants(), restaurant]);
+    writeRegisteredRestaurants(mergedRegistered);
+    setRestaurants((prev) => dedupeRestaurants([...prev, restaurant]));
 
     const session = { email, restaurantId: restaurant.id, businessId, resourceId, token: getAccessToken() };
     writeClientSession(null);
@@ -195,19 +219,24 @@ export default function App() {
 
     const accounts = readAccounts();
     const account = accounts.find((item) => item.email?.trim().toLowerCase() === normalizedEmail);
-    if (!account || account.password !== password) {
-      throw new Error("Email o contraseña incorrectos");
-    }
 
     const registeredRestaurants = readRegisteredRestaurants();
-    const restaurant = normalizeRestaurantLayout(
-      registeredRestaurants.find((item) => sameRestaurantId(item.id, account.restaurantId))
-    );
+    const restaurant = account
+      ? normalizeRestaurantLayout(
+          registeredRestaurants.find((item) => sameRestaurantId(item.id, account.restaurantId))
+        )
+      : null;
     if (restaurant && !restaurants.some((r) => sameRestaurantId(r.id, restaurant.id))) {
       setRestaurants((prev) => [...prev, restaurant]);
     }
 
-    const session = { email: normalizedEmail, restaurantId: account.restaurantId, businessId: account.businessId, resourceId: account.resourceId, token };
+    const session = {
+      email: normalizedEmail,
+      restaurantId: account?.restaurantId ?? null,
+      businessId: account?.businessId ?? null,
+      resourceId: account?.resourceId ?? null,
+      token,
+    };
     writeClientSession(null);
     syncRestaurantSession(session);
     setAuthError("");
@@ -287,10 +316,47 @@ export default function App() {
     setView("landing");
   };
 
+  const deleteRestaurantAccount = async () => {
+    const session = restaurantSession;
+    if (!session || !session.businessId) {
+      clearAccessToken();
+      syncRestaurantSession(null);
+      setView("landing");
+      return;
+    }
+
+    const confirmed = window.confirm("¿Seguro que quieres borrar este restaurante y su cuenta? Esta acción no se puede deshacer.");
+    if (!confirmed) return;
+
+    try {
+      await requestJson(`${API_BASE_URL}/v1/businesses/${session.businessId}`, {
+        method: "DELETE",
+      });
+
+      const accounts = readAccounts().filter((account) => account.email?.trim().toLowerCase() !== (session.email || "").trim().toLowerCase());
+      writeAccounts(accounts);
+      const registered = dedupeRestaurants(readRegisteredRestaurants()).filter(
+        (restaurant) => !sameRestaurantId(restaurant.id, session.restaurantId) && !sameRestaurantId(restaurant.backendBusinessId, session.businessId)
+      );
+      writeRegisteredRestaurants(registered);
+      clearAccessToken();
+      syncRestaurantSession(null);
+      setRestaurants((prev) => dedupeRestaurants(prev).filter(
+        (restaurant) => !sameRestaurantId(restaurant.id, session.restaurantId) && !sameRestaurantId(restaurant.backendBusinessId, session.businessId)
+      ));
+      setAuthError("");
+      setView("landing");
+    } catch (error) {
+      console.error("No se pudo borrar el restaurante:", error);
+      throw new Error(error?.message || "No se pudo borrar el restaurante");
+    }
+  };
+
   const handleSaveRestaurant = (updatedRestaurant) => {
     setRestaurants((prev) => prev.map((r) => (r.id === updatedRestaurant.id ? updatedRestaurant : r)));
-    const registered = readRegisteredRestaurants();
-    writeRegisteredRestaurants(registered.map((r) => (r.id === updatedRestaurant.id ? updatedRestaurant : r)));
+    const registered = dedupeRestaurants(readRegisteredRestaurants())
+      .map((r) => (sameRestaurantId(r.id, updatedRestaurant.id) ? updatedRestaurant : r));
+    writeRegisteredRestaurants(dedupeRestaurants(registered));
   };
 
   let content;

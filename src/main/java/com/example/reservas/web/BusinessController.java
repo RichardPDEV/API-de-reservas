@@ -4,6 +4,8 @@ import com.example.reservas.domain.Business;
 import com.example.reservas.domain.User;
 import com.example.reservas.repo.BusinessRepository;
 import com.example.reservas.repo.UserRepository;
+import com.example.reservas.repo.ResourceRepository;
+import com.example.reservas.repo.ReservationRepository;
 import com.example.reservas.domain.NotFoundException;
 import com.example.reservas.domain.ValidationException;
 import com.example.reservas.web.dto.BusinessResponse;
@@ -24,11 +26,19 @@ import org.springframework.web.bind.annotation.*;
 public class BusinessController {
     private final BusinessRepository businessRepo;
     private final UserRepository userRepo;
+    private final ResourceRepository resourceRepo;
+    private final ReservationRepository reservationRepo;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public BusinessController(BusinessRepository businessRepo, UserRepository userRepo) {
+        this(businessRepo, userRepo, null, null);
+    }
+
+    public BusinessController(BusinessRepository businessRepo, UserRepository userRepo, ResourceRepository resourceRepo, ReservationRepository reservationRepo) {
         this.businessRepo = businessRepo;
         this.userRepo = userRepo;
+        this.resourceRepo = resourceRepo;
+        this.reservationRepo = reservationRepo;
     }
 
     @PostMapping
@@ -89,6 +99,32 @@ public class BusinessController {
                     return toResponse(businessRepo.save(existing));
                 })
                 .orElseThrow(() -> new NotFoundException("Business %d no existe".formatted(id)));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Eliminar negocio y su cuenta asociada")
+    public java.util.Map<String, Object> delete(@PathVariable Long id, java.security.Principal principal) {
+        Business existing = businessRepo.findById(id)
+                .orElseThrow(() -> new NotFoundException("Business %d no existe".formatted(id)));
+        requireOwner(existing, principal);
+
+        if (resourceRepo != null) {
+            var resources = resourceRepo.findByBusinessId(id, org.springframework.data.domain.Pageable.unpaged()).getContent();
+            if (resources != null && !resources.isEmpty()) {
+                for (var resource : resources) {
+                    if (reservationRepo != null) {
+                        var reservations = reservationRepo.findByResourceId(resource.getId());
+                        if (reservations != null && !reservations.isEmpty()) {
+                            reservationRepo.deleteAll(reservations);
+                        }
+                    }
+                }
+                resourceRepo.deleteAll(resources);
+            }
+        }
+
+        businessRepo.delete(existing);
+        return java.util.Map.of("deleted", true, "businessId", id, "message", "Negocio eliminado correctamente");
     }
 
     private void requireOwner(Business existing, java.security.Principal principal) {
