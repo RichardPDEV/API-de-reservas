@@ -398,6 +398,7 @@ export default function App() {
         initialRestaurantId={restaurantSession?.restaurantId}
         onBack={() => setView("landing")}
         onLogout={logoutRestaurant}
+        onDeleteRestaurant={deleteRestaurantAccount}
         onSaveRestaurant={handleSaveRestaurant}
       />
     );

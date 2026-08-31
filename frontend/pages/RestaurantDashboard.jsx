@@ -10,7 +10,7 @@ import Badge from "../components/Badge.jsx";
 import FloorPlan from "../components/FloorPlan.jsx";
 import { Label, inputStyle } from "../components/FormFields.jsx";
 
-export default function RestaurantDashboard({ restaurants, onBack, onLogout, onSaveRestaurant, initialRestaurantId }) {
+export default function RestaurantDashboard({ restaurants, onBack, onLogout, onDeleteRestaurant, onSaveRestaurant, initialRestaurantId }) {
   const resolveRestaurants = () => {
     const normalized = (restaurants || []).map(normalizeRestaurantLayout).filter(Boolean);
     if (!initialRestaurantId) return normalized;
@@ -825,7 +825,7 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onS
             <button onClick={onLogout} style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 999, color: "#475569", padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: 700, boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)" }}>
               Cerrar sesión
             </button>
-            <button onClick={deleteRestaurantAccount} style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 999, color: "#be123c", padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: 700, boxShadow: "0 6px 18px rgba(244, 63, 94, 0.08)" }}>
+            <button onClick={onDeleteRestaurant} style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 999, color: "#be123c", padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: 700, boxShadow: "0 6px 18px rgba(244, 63, 94, 0.08)" }}>
               Borrar restaurante
             </button>
           </div>
