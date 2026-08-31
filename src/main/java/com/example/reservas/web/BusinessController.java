@@ -18,6 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -34,6 +35,7 @@ public class BusinessController {
         this(businessRepo, userRepo, null, null);
     }
 
+    @Autowired
     public BusinessController(BusinessRepository businessRepo, UserRepository userRepo, ResourceRepository resourceRepo, ReservationRepository reservationRepo) {
         this.businessRepo = businessRepo;
         this.userRepo = userRepo;
