@@ -10,24 +10,28 @@ import Badge from "../components/Badge.jsx";
 import FloorPlan from "../components/FloorPlan.jsx";
 import { Label, inputStyle } from "../components/FormFields.jsx";
 
-export default function RestaurantDashboard({ restaurants, onBack, onLogout, onDeleteRestaurant, onSaveRestaurant, initialRestaurantId }) {
+export default function RestaurantDashboard({ restaurants, onBack, onLogout, onDeleteRestaurant, onSaveRestaurant, initialRestaurantId, initialBusinessId }) {
   const resolveRestaurants = () => {
     const normalized = (restaurants || []).map(normalizeRestaurantLayout).filter(Boolean);
-    if (!initialRestaurantId) return normalized;
+    if (!initialRestaurantId && !initialBusinessId) return normalized;
 
-    const owned = normalized.filter((r) => sameRestaurantId(r.id, initialRestaurantId));
+    const owned = normalized.filter((r) =>
+      sameRestaurantId(r.id, initialRestaurantId) || sameRestaurantId(r.backendBusinessId, initialBusinessId)
+    );
     if (owned.length) return owned;
 
     const registered = readRegisteredRestaurants()
       .map(normalizeRestaurantLayout)
       .filter(Boolean)
-      .filter((r) => sameRestaurantId(r.id, initialRestaurantId));
+      .filter((r) =>
+        sameRestaurantId(r.id, initialRestaurantId) || sameRestaurantId(r.backendBusinessId, initialBusinessId)
+      );
 
     if (registered.length) {
-      return [...normalized, ...registered.filter((r) => !normalized.some((item) => sameRestaurantId(item.id, r.id)))];
+      return registered;
     }
 
-    return normalized;
+    return normalized.slice(0, 1);
   };
 
   const initialList = resolveRestaurants();
@@ -825,9 +829,6 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onD
             <button onClick={onLogout} style={{ background: "white", border: "1px solid #e2e8f0", borderRadius: 999, color: "#475569", padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: 700, boxShadow: "0 6px 18px rgba(15, 23, 42, 0.05)" }}>
               Cerrar sesión
             </button>
-            <button onClick={onDeleteRestaurant} style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 999, color: "#be123c", padding: "10px 16px", cursor: "pointer", fontSize: 13, fontWeight: 700, boxShadow: "0 6px 18px rgba(244, 63, 94, 0.08)" }}>
-              Borrar restaurante
-            </button>
           </div>
         </div>
 
@@ -885,6 +886,16 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onD
                   <Label>Confirmar contraseña</Label>
                   <input type="password" value={settingsForm.confirmPassword} onChange={(e) => setSettingsForm((prev) => ({ ...prev, confirmPassword: e.target.value }))} placeholder="Repite la nueva contraseña" style={inputStyle} />
                 </div>
+              </div>
+
+              <div style={{ marginTop: 28, paddingTop: 20, borderTop: "1px solid #fecdd3" }}>
+                <h3 style={{ margin: "0 0 6px", color: "#9f1239", fontSize: 16 }}>Zona de peligro</h3>
+                <p style={{ margin: "0 0 14px", color: "#64748b", fontSize: 13 }}>
+                  Esta acción elimina permanentemente el restaurante, sus reservas y su acceso.
+                </p>
+                <button onClick={onDeleteRestaurant} style={{ background: "#fff1f2", border: "1px solid #fecdd3", borderRadius: 12, color: "#be123c", padding: "12px 18px", cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+                  Borrar restaurante definitivamente
+                </button>
               </div>
             </div>
           )}

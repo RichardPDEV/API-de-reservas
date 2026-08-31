@@ -28,10 +28,14 @@ const dedupeRestaurants = (items = []) => {
     const restaurant = normalizeRestaurantLayout(entry);
     if (!restaurant) continue;
 
+    const normalizedName = restaurant.name?.trim().toLowerCase();
+    const normalizedAddress = restaurant.address?.trim().toLowerCase();
+    const businessKey = normalizedName && normalizedAddress
+      ? `business:${normalizedName}|${normalizedAddress}`
+      : null;
     const backendKey = restaurant.backendBusinessId ? `backend:${restaurant.backendBusinessId}` : null;
     const localKey = restaurant.id != null ? `local:${restaurant.id}` : null;
-    const fallbackKey = restaurant.name && restaurant.address ? `name:${restaurant.name}|${restaurant.address}` : null;
-    const key = backendKey || localKey || fallbackKey;
+    const key = businessKey || backendKey || localKey;
     if (!key) continue;
 
     const current = seen.get(key);
@@ -77,8 +81,8 @@ export default function App() {
       }
 
       try {
-        const liveRestaurants = dedupeRestaurants(await Promise.all(combined.map(mapRestaurantToBackend)));
-        const mergedRestaurants = dedupeRestaurants([...liveRestaurants, ...publicRestaurants]);
+        const liveRestaurants = dedupeRestaurants(await Promise.all(registered.map(mapRestaurantToBackend)));
+        const mergedRestaurants = dedupeRestaurants([...publicRestaurants, ...liveRestaurants]);
         if (isMounted) {
           setRestaurants(mergedRestaurants);
           setBackendStatus("connected");
@@ -414,6 +418,7 @@ export default function App() {
       <RestaurantDashboard
         restaurants={restaurants}
         initialRestaurantId={restaurantSession?.restaurantId}
+        initialBusinessId={restaurantSession?.businessId}
         onBack={() => setView("landing")}
         onLogout={logoutRestaurant}
         onDeleteRestaurant={deleteRestaurantAccount}
