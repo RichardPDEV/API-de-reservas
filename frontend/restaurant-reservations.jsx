@@ -270,13 +270,11 @@ export default function App() {
     const restaurant = restaurants.find((r) => r.id === restaurantId);
     if (!restaurant) return;
 
-    const restaurantWithBackend = restaurant.backendResourceId
-      ? restaurant
-      : await mapRestaurantToBackend(restaurant);
+    const restaurantWithBackend = restaurant;
 
     const resourceId = restaurantWithBackend?.backendResourceId || restaurantWithBackend?.resourceId;
     if (!resourceId) {
-      throw new Error("No se pudo preparar el restaurante para reservar");
+      throw new Error("Este restaurante todavía no tiene una mesa reservable configurada");
     }
 
     const startTime = buildIsoDateTime(data.date, data.time);

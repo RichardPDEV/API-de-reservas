@@ -75,6 +75,7 @@ public class SecurityConfig {
 
                 auth
                     .requestMatchers(HttpMethod.GET, "/auth/me").authenticated()
+                    .requestMatchers(HttpMethod.GET, "/v1/resources").permitAll()
                     .requestMatchers(HttpMethod.GET, "/v1/resources/**", "/api/resources/**").authenticated()
                     .requestMatchers(HttpMethod.GET, "/v1/reservations", "/v1/reservations/**").authenticated()
                     .requestMatchers(HttpMethod.POST, "/v1/businesses").authenticated()
