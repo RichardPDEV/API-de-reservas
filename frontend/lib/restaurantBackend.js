@@ -15,7 +15,15 @@ export async function fetchBusiness(businessId) {
 }
 
 export async function loadPublicRestaurants() {
-  const businesses = await requestJson(`${API_BASE_URL}/v1/businesses`);
+  return loadRestaurantsFromEndpoint(`${API_BASE_URL}/v1/businesses`);
+}
+
+export async function loadOwnedRestaurants() {
+  return loadRestaurantsFromEndpoint(`${API_BASE_URL}/v1/businesses/mine`);
+}
+
+async function loadRestaurantsFromEndpoint(endpoint) {
+  const businesses = await requestJson(endpoint);
   return Promise.all((businesses || [])
     .filter((business) => business.type === "RESTAURANT")
     .map(async (business) => {

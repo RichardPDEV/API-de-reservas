@@ -31,10 +31,6 @@ public class BusinessController {
     private final ReservationRepository reservationRepo;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public BusinessController(BusinessRepository businessRepo, UserRepository userRepo) {
-        this(businessRepo, userRepo, null, null);
-    }
-
     @Autowired
     public BusinessController(BusinessRepository businessRepo, UserRepository userRepo, ResourceRepository resourceRepo, ReservationRepository reservationRepo) {
         this.businessRepo = businessRepo;
@@ -72,6 +68,18 @@ public class BusinessController {
         Business business = businessRepo.findById(id)
                 .orElseThrow(() -> new NotFoundException("Business %d no existe".formatted(id)));
         return toResponse(business);
+    }
+
+    @GetMapping("/mine")
+    @Operation(summary = "Listar negocios del propietario autenticado")
+    public java.util.List<BusinessResponse> mine(java.security.Principal principal) {
+        if (principal == null) {
+            throw new AccessDeniedException("Debes iniciar sesión");
+        }
+        Long ownerId = userRepo.findByUsername(principal.getName())
+                .map(User::getId)
+                .orElseThrow(() -> new AccessDeniedException("Usuario no encontrado"));
+        return businessRepo.findByOwnerId(ownerId).stream().map(this::toResponse).toList();
     }
 
     @GetMapping

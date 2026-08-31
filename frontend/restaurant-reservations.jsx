@@ -11,7 +11,7 @@ import {
   writeRestaurantSession,
   writeClientSession,
 } from "./lib/storage.js";
-import { mapRestaurantToBackend, loadPublicRestaurants, buildIsoDateTime, getEndTimeFromStart } from "./lib/restaurantBackend.js";
+import { mapRestaurantToBackend, loadPublicRestaurants, loadOwnedRestaurants, buildIsoDateTime, getEndTimeFromStart } from "./lib/restaurantBackend.js";
 import { normalizeRestaurantLayout, sameRestaurantId } from "./lib/layout.js";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
@@ -217,6 +217,13 @@ export default function App() {
     }
     setAccessToken(token);
 
+    let ownedRestaurants = [];
+    try {
+      ownedRestaurants = await loadOwnedRestaurants();
+    } catch (error) {
+      console.warn("No se pudieron cargar los restaurantes del propietario:", error);
+    }
+
     const accounts = readAccounts();
     const account = accounts.find((item) => item.email?.trim().toLowerCase() === normalizedEmail);
 
@@ -230,11 +237,22 @@ export default function App() {
       setRestaurants((prev) => [...prev, restaurant]);
     }
 
+    const ownedRestaurant = ownedRestaurants[0] || null;
+    const recoveredRestaurant = ownedRestaurant
+      ? normalizeRestaurantLayout({
+          ...ownedRestaurant,
+          id: ownedRestaurant.id || `backend-${ownedRestaurant.backendBusinessId}`,
+        })
+      : restaurant;
+    if (recoveredRestaurant) {
+      setRestaurants((prev) => dedupeRestaurants([...prev, recoveredRestaurant]));
+    }
+
     const session = {
       email: normalizedEmail,
-      restaurantId: account?.restaurantId ?? null,
-      businessId: account?.businessId ?? null,
-      resourceId: account?.resourceId ?? null,
+      restaurantId: recoveredRestaurant?.id ?? account?.restaurantId ?? null,
+      businessId: recoveredRestaurant?.backendBusinessId ?? account?.businessId ?? null,
+      resourceId: recoveredRestaurant?.backendResourceId ?? account?.resourceId ?? null,
       token,
     };
     writeClientSession(null);

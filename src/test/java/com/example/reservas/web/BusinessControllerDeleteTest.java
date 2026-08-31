@@ -27,6 +27,7 @@ import java.util.Optional;
 
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -91,5 +92,31 @@ class BusinessControllerDeleteTest {
         verify(reservationRepo).deleteAll(List.of(reservation));
         verify(resourceRepo).deleteAll(List.of(resource));
         verify(businessRepo).delete(business);
+    }
+
+    @Test
+    void mineReturnsOnlyBusinessesOwnedByAuthenticatedUser() throws Exception {
+        Business business = new Business();
+        business.setId(42L);
+        business.setName("Mi Restaurante");
+        business.setType("RESTAURANT");
+
+        User owner = new User();
+        owner.setId(7L);
+        owner.setUsername("owner@example.com");
+
+        when(userRepo.findByUsername("owner@example.com")).thenReturn(Optional.of(owner));
+        when(businessRepo.findByOwnerId(7L)).thenReturn(List.of(business));
+
+        UserDetails principalUser = org.springframework.security.core.userdetails.User.withUsername("owner@example.com")
+                .password("secret")
+                .authorities(new SimpleGrantedAuthority("ROLE_OWNER"))
+                .build();
+
+        mockMvc.perform(get("/v1/businesses/mine")
+                        .principal(new UsernamePasswordAuthenticationToken(principalUser, "secret", principalUser.getAuthorities())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(42))
+                .andExpect(jsonPath("$[0].name").value("Mi Restaurante"));
     }
 }
