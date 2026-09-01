@@ -488,13 +488,17 @@ export default function ClientReservation({ restaurant, onBack, onConfirm }) {
     times.push(`${String(h).padStart(2, "0")}:30`);
   }
   const today = new Date().toISOString().split("T")[0];
+  const now = new Date();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+  const isPastTimeForToday = date === today && parseTimeToMinutes(time) < nowMinutes;
+  const timeInPastError = isPastTimeForToday ? "No puedes reservar un horario que ya pasó para hoy." : "";
   const reservationDurationMinutes = getDurationMinutes(time, endTime);
   const durationError = reservationDurationMinutes <= 0
     ? "La hora de fin debe ser posterior a la hora de inicio."
     : reservationDurationMinutes > 120
       ? "La reserva puede durar máximo 2 horas."
       : "";
-  const canConfirmReservation = !durationError && requestedIntervalAvailable;
+  const canConfirmReservation = !durationError && !timeInPastError && requestedIntervalAvailable;
   const suggestedEndMax = formatMinutesToTime(Math.min(parseTimeToMinutes(time) + 120, closeHour * 60));
   const canReviewReservation = Boolean(
     selectedTable &&
@@ -1048,7 +1052,15 @@ export default function ClientReservation({ restaurant, onBack, onConfirm }) {
               <input type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} style={inputStyle} />
 
               <Label>Hora de inicio</Label>
-              <input type="time" value={time} step="1800" list="reservation-times" onChange={(e) => setTime(e.target.value)} style={inputStyle} />
+              <input
+                type="time"
+                value={time}
+                step="1800"
+                min={date === today ? formatMinutesToTime(nowMinutes) : undefined}
+                list="reservation-times"
+                onChange={(e) => setTime(e.target.value)}
+                style={inputStyle}
+              />
               <datalist id="reservation-times">
                 {times.map((t) => <option key={t} value={t} />)}
               </datalist>
@@ -1064,8 +1076,8 @@ export default function ClientReservation({ restaurant, onBack, onConfirm }) {
                 onChange={(e) => setEndTime(e.target.value)}
                 style={{ ...inputStyle, marginBottom: 4 }}
               />
-              <p style={{ color: durationError ? "#dc2626" : "#64748b", fontSize: 12, margin: "4px 0 12px" }}>
-                {durationError || `La reserva puede durar hasta 2 horas. Fin máximo ${suggestedEndMax}.`}
+              <p style={{ color: timeInPastError || durationError ? "#dc2626" : "#64748b", fontSize: 12, margin: "4px 0 12px" }}>
+                {timeInPastError || durationError || `La reserva puede durar hasta 2 horas. Fin máximo ${suggestedEndMax}.`}
               </p>
               {selectedTable && availabilityMessage ? (
                 <p style={{ color: requestedIntervalAvailable ? "#15803d" : "#b91c1c", fontSize: 13, margin: "0 0 12px" }}>

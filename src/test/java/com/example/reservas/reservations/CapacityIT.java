@@ -93,4 +93,21 @@ class CapacityIT {
     );
     assertThrows(ValidationException.class, () -> reservationService.create(req));
   }
+
+  @Test
+  void create_rejectsPastStartTimeForToday() {
+    var now = OffsetDateTime.now(ZoneOffset.UTC);
+    var start = now.minusMinutes(30);
+    var req = new CreateReservationRequest(
+        resource.getId(),
+        "Ana",
+        "ana@example.com",
+        2,
+        "T1",
+        start,
+        start.plusHours(1)
+    );
+
+    assertThrows(ValidationException.class, () -> reservationService.create(req));
+  }
 }

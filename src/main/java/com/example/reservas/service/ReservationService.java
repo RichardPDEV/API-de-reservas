@@ -68,6 +68,11 @@ public class ReservationService {
             throw new ValidationException("startTime debe ser < endTime");
         }
 
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        if (req.startTime().isBefore(now)) {
+            throw new ValidationException("No se puede reservar en el pasado");
+        }
+
         Resource resource = resourceRepo.findById(req.resourceId())
                 .orElseThrow(() -> new NotFoundException("Resource %d no existe".formatted(req.resourceId())));
 
