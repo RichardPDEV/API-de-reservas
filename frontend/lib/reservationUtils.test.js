@@ -1,6 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { getReservationStatusMeta, getReservationStartTime, isUpcomingReservation } from './reservationUtils.js';
+import { getReservationStatusMeta, getReservationStartTime, isUpcomingReservation, getReservationDateParts, getReservationTimeLabel } from './reservationUtils.js';
+
+test('extrae fecha y hora de reservas con startTime/endTime desde backend', () => {
+  const reservation = {
+    status: 'CONFIRMED',
+    startTime: '2026-06-26T20:00:00Z',
+    endTime: '2026-06-26T22:00:00Z',
+  };
+
+  assert.deepEqual(getReservationDateParts(reservation), { date: '2026-06-26', day: '26', month: '06' });
+  assert.equal(getReservationTimeLabel(reservation), '20:00');
+});
 
 test('marca una reserva futura como confirmada y próxima', () => {
   const now = new Date('2026-06-26T18:00:00Z').getTime();

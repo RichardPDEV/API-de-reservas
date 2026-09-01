@@ -9,6 +9,7 @@ import { readRegisteredRestaurants } from "../lib/storage.js";
 import Badge from "../components/Badge.jsx";
 import FloorPlan from "../components/FloorPlan.jsx";
 import { Label, inputStyle } from "../components/FormFields.jsx";
+import { getReservationDateParts, getReservationTimeLabel } from "../lib/reservationUtils.js";
 
 export default function RestaurantDashboard({ restaurants, onBack, onLogout, onDeleteRestaurant, onSaveRestaurant, initialRestaurantId, initialBusinessId }) {
   const resolveRestaurants = () => {
@@ -580,15 +581,20 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onD
   const activeTables = activeRest.tables || [];
   const activeReservations = activeRest.reservations || [];
   const sortedReservations = [...activeReservations].sort((a, b) => {
-    const dateA = `${a?.date || ""}T${a?.time || "00:00"}`;
-    const dateB = `${b?.date || ""}T${b?.time || "00:00"}`;
-    return dateA.localeCompare(dateB);
+    const dateA = getReservationDateParts(a).date || "";
+    const dateB = getReservationDateParts(b).date || "";
+    const timeA = getReservationTimeLabel(a);
+    const timeB = getReservationTimeLabel(b);
+    return `${dateA}T${timeA}`.localeCompare(`${dateB}T${timeB}`);
   });
   const today = new Date().toISOString().split("T")[0];
-  const todaysReservations = sortedReservations.filter((res) => res?.date === today);
-  const upcomingReservations = sortedReservations.filter((res) => (res?.date || "") >= today && res?.date !== today);
+  const todaysReservations = sortedReservations.filter((res) => (getReservationDateParts(res).date || "") === today);
+  const upcomingReservations = sortedReservations.filter((res) => {
+    const reservationDate = getReservationDateParts(res).date || "";
+    return reservationDate >= today && reservationDate !== today;
+  });
   const reservationGroups = sortedReservations.reduce((groups, reservation) => {
-    const key = reservation?.date || today;
+    const key = getReservationDateParts(reservation).date || today;
     if (!groups[key]) groups[key] = [];
     groups[key].push(reservation);
     return groups;
@@ -1450,12 +1456,14 @@ export default function RestaurantDashboard({ restaurants, onBack, onLogout, onD
                       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                         {reservations.map((res) => {
                           const table = activeTables.find((t) => t.id === res.tableId);
-                          const isActive = res?.status === "confirmed" || res?.status === "occupied";
+                          const reservationDate = getReservationDateParts(res);
+                          const reservationTime = getReservationTimeLabel(res);
+                          const isActive = res?.status === "confirmed" || res?.status === "occupied" || res?.status === "CONFIRMED";
                           return (
                             <div key={res.id} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 12, padding: "14px 16px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
                               <div style={{ background: isActive ? "#dbeafe" : "#fef9c3", borderRadius: 12, padding: "10px 14px", textAlign: "center", minWidth: 70 }}>
-                                <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: isActive ? "#2563eb" : "#a16207" }}>{res.time}</p>
-                                <p style={{ margin: 0, fontSize: 12, color: isActive ? "#60a5fa" : "#ca8a04" }}>{res.date.split("-")[2]}/{res.date.split("-")[1]}</p>
+                                <p style={{ margin: 0, fontSize: 16, fontWeight: 800, color: isActive ? "#2563eb" : "#a16207" }}>{reservationTime}</p>
+                                <p style={{ margin: 0, fontSize: 12, color: isActive ? "#60a5fa" : "#ca8a04" }}>{reservationDate.day && reservationDate.month ? `${reservationDate.day}/${reservationDate.month}` : "--/--"}</p>
                               </div>
                               <div style={{ flex: 1 }}>
                                 <p style={{ margin: "0 0 4px", fontWeight: 700, color: "#0f172a", fontSize: 16 }}>{res.name || res.customerName || "Cliente"}</p>

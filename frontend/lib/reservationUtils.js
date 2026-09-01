@@ -10,6 +10,61 @@ export const getReservationStartTime = (reservation) => {
   return null;
 };
 
+export const getReservationDateParts = (reservation) => {
+  const startTimeValue = reservation?.startTime;
+  if (typeof startTimeValue === "string" && startTimeValue.includes("T")) {
+    const dateText = startTimeValue.slice(0, 10);
+    return {
+      date: dateText,
+      day: dateText.slice(8, 10),
+      month: dateText.slice(5, 7),
+    };
+  }
+
+  const startDate = getReservationStartTime(reservation);
+  if (startDate) {
+    const isoDate = startDate.toISOString().slice(0, 10);
+    return {
+      date: isoDate,
+      day: isoDate.slice(8, 10),
+      month: isoDate.slice(5, 7),
+    };
+  }
+
+  const dateValue = reservation?.date || null;
+  if (dateValue) {
+    const [year, month, day] = String(dateValue).split("-");
+    return {
+      date: dateValue,
+      day: day || "",
+      month: month || "",
+    };
+  }
+
+  return { date: "", day: "", month: "" };
+};
+
+export const getReservationTimeLabel = (reservation) => {
+  if (reservation?.time) return String(reservation.time);
+
+  const startTimeValue = reservation?.startTime;
+  if (typeof startTimeValue === "string" && startTimeValue.includes("T")) {
+    const match = startTimeValue.match(/T(\d{2}:\d{2})/);
+    if (match) return match[1];
+  }
+
+  const startDate = getReservationStartTime(reservation);
+  if (!startDate) return "--:--";
+
+  const originalValue = reservation?.startTime;
+  if (typeof originalValue === "string" && originalValue.includes("T")) {
+    const match = originalValue.match(/T(\d{2}:\d{2})/);
+    if (match) return match[1];
+  }
+
+  return startDate.toISOString().slice(11, 16);
+};
+
 export const isUpcomingReservation = (value, now = Date.now()) => {
   const parsed = value instanceof Date ? value : new Date(value);
   return !Number.isNaN(parsed.getTime()) && parsed.getTime() > now;
